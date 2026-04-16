@@ -1,96 +1,67 @@
 import { Activity, CalendarClock, ShieldCheck } from "lucide-react";
-import { useEffect, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
-import { useAuth } from "@/contexts/useAuth";
-import { getHomeRouteForRole, getRoleFromToken } from "@/lib/auth";
-import api, { getAccessToken } from "@/services/api";
+import api from "@/services/api";
 
-const insights = [
-  { icon: CalendarClock, text: "Book and reschedule instantly" },
-  { icon: ShieldCheck, text: "Protected role-based access" },
-  { icon: Activity, text: "Live appointment status tracking" },
+const benefits = [
+  { icon: CalendarClock, text: "Instant appointment booking" },
+  { icon: ShieldCheck, text: "Secure patient account" },
+  { icon: Activity, text: "Track every visit update" },
 ];
 
-function extractTokens(payload) {
-  return {
-    accessToken:
-      payload?.data?.accessToken ||
-      payload?.data?.access_token ||
-      payload?.accessToken ||
-      payload?.access_token ||
-      payload?.data?.token ||
-      payload?.token ||
-      null,
-    refreshToken:
-      payload?.data?.refreshToken ||
-      payload?.data?.refresh_token ||
-      payload?.refreshToken ||
-      payload?.refresh_token ||
-      null,
-  };
-}
-
-export default function LoginPage() {
+export default function RegisterPage() {
   const navigate = useNavigate();
-  const location = useLocation();
-  const { setAuthSession } = useAuth();
 
+  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const from = location.state?.from || "/doctors";
-
-  useEffect(() => {
-    if (getAccessToken()) {
-      navigate(from, { replace: true });
-    }
-  }, [from, navigate]);
 
   const onSubmit = async (event) => {
     event.preventDefault();
 
-    if (!email.trim() || !password) {
-      toast.error("Email and password are required.");
+    if (!fullName.trim() || !email.trim() || !password || !confirmPassword) {
+      toast.error("All fields are required.");
+      return;
+    }
+
+    if (password.length < 8) {
+      toast.error("Password must be at least 8 characters.");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      toast.error("Passwords do not match.");
       return;
     }
 
     setIsSubmitting(true);
 
     try {
-      const response = await api.post("/auth/login", {
+      await api.post("/auth/register", {
+        full_name: fullName.trim(),
         email: email.trim(),
         password,
+        role: "patient",
       });
 
-      const { accessToken, refreshToken } = extractTokens(response.data);
-
-      if (!accessToken) {
-        toast.error("Login succeeded but no access token was returned.");
-        return;
-      }
-
-      setAuthSession(accessToken, refreshToken);
-      toast.success("Welcome back.");
-
-      const role = getRoleFromToken(accessToken);
-      const destination = location.state?.from || getHomeRouteForRole(role);
-
-      navigate(destination || from, { replace: true });
+      toast.success("Account created. Please sign in.");
+      navigate("/login", { replace: true });
     } catch (error) {
       const status = error?.response?.status;
-      if (status === 401 || status === 403) {
-        toast.error("Invalid credentials.");
+      if (status === 409) {
+        toast.error("An account with this email already exists.");
       } else if (status === 422) {
-        toast.error("Please provide a valid email and password.");
+        toast.error("Please check your details and try again.");
       } else {
-        toast.error("Login failed. Please try again.");
+        toast.error("Registration failed. Please try again.");
       }
       console.error(error);
     } finally {
@@ -108,15 +79,15 @@ export default function LoginPage() {
       <div className="relative grid w-full max-w-5xl gap-6 rounded-2xl border border-white/15 bg-white/5 p-5 backdrop-blur-xl md:grid-cols-[1.1fr_1fr] md:p-8">
         <section className="space-y-5 rounded-xl border border-white/10 bg-black/20 p-6">
           <p className="inline-flex rounded-full border border-cyan-200/30 bg-cyan-300/10 px-3 py-1 text-xs font-medium text-cyan-100">
-            Secure Sign In
+            Patient Onboarding
           </p>
-          <h1 className="text-3xl font-semibold leading-tight">Welcome back to MedStream.</h1>
+          <h1 className="text-3xl font-semibold leading-tight">Start your MedStream journey today.</h1>
           <p className="text-sm text-slate-200/90">
-            Continue managing appointments, outcomes, and records through one streamlined portal.
+            Create your patient account to book doctors, track appointments, and manage your healthcare timeline.
           </p>
 
           <div className="space-y-3 pt-1">
-            {insights.map((item) => (
+            {benefits.map((item) => (
               <div key={item.text} className="flex items-center gap-3 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm">
                 <item.icon className="size-4 text-emerald-300" />
                 <span>{item.text}</span>
@@ -127,11 +98,21 @@ export default function LoginPage() {
 
         <Card className="border border-white/15 bg-slate-950/70 text-white">
           <CardHeader>
-            <CardTitle className="text-2xl">Sign in</CardTitle>
-            <p className="text-sm text-slate-300">Access your account with your email and password.</p>
+            <CardTitle className="text-2xl">Create account</CardTitle>
+            <p className="text-sm text-slate-300">Sign up as a patient in under a minute.</p>
           </CardHeader>
           <CardContent>
             <form className="space-y-4" onSubmit={onSubmit}>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Full name</label>
+                <Input
+                  placeholder="Kamal Perera"
+                  value={fullName}
+                  onChange={(event) => setFullName(event.target.value)}
+                  className="border-white/20 bg-white/5 text-white placeholder:text-slate-400"
+                />
+              </div>
+
               <div className="space-y-1.5">
                 <label className="text-sm font-medium">Email</label>
                 <Input
@@ -139,7 +120,6 @@ export default function LoginPage() {
                   placeholder="patient@example.com"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
-                  autoComplete="email"
                   className="border-white/20 bg-white/5 text-white placeholder:text-slate-400"
                 />
               </div>
@@ -148,10 +128,20 @@ export default function LoginPage() {
                 <label className="text-sm font-medium">Password</label>
                 <Input
                   type="password"
-                  placeholder="Enter your password"
+                  placeholder="At least 8 characters"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
-                  autoComplete="current-password"
+                  className="border-white/20 bg-white/5 text-white placeholder:text-slate-400"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Confirm password</label>
+                <Input
+                  type="password"
+                  placeholder="Repeat your password"
+                  value={confirmPassword}
+                  onChange={(event) => setConfirmPassword(event.target.value)}
                   className="border-white/20 bg-white/5 text-white placeholder:text-slate-400"
                 />
               </div>
@@ -160,18 +150,18 @@ export default function LoginPage() {
                 {isSubmitting ? (
                   <span className="inline-flex items-center gap-2">
                     <Spinner className="size-4" />
-                    Signing in...
+                    Creating account...
                   </span>
                 ) : (
-                  "Sign in"
+                  "Create account"
                 )}
               </Button>
             </form>
 
             <p className="mt-5 text-center text-sm text-slate-300">
-              New to MedStream?{" "}
-              <Link to="/register" className="font-medium text-cyan-200 hover:text-cyan-100">
-                Create an account
+              Already have an account?{" "}
+              <Link to="/login" className="font-medium text-cyan-200 hover:text-cyan-100">
+                Sign in
               </Link>
             </p>
           </CardContent>
