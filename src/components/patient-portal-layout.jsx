@@ -3,18 +3,48 @@ import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 
 import { Button } from "@/components/ui/button";
-import { setAccessToken } from "@/services/api";
+import { useAuth } from "@/contexts/useAuth";
+import { ROLES, getHomeRouteForRole, isClinicRole } from "@/lib/auth";
 
-const navItems = [
-  { label: "Appointments", href: "/doctors" },
-  { label: "Find a Doctor", href: "/doctors" },
-];
+function getNavItemsByRole(role) {
+  if (role === ROLES.DOCTOR) {
+    return [{ label: "Doctor Dashboard", href: "/doctor/dashboard" }];
+  }
+
+  if (isClinicRole(role)) {
+    return [{ label: "Clinic Admin", href: "/admin/clinic/dashboard" }];
+  }
+
+  if (role === ROLES.ADMIN) {
+    return [{ label: "Super Admin", href: "/admin/super/dashboard" }];
+  }
+
+  return [
+    { label: "Find a Doctor", href: "/doctors" },
+    { label: "My Profile", href: "/patient/profile" },
+  ];
+}
+
+function getPortalLabel(role) {
+  if (role === ROLES.DOCTOR) {
+    return "Doctor Portal";
+  }
+  if (isClinicRole(role)) {
+    return "Clinic Admin Portal";
+  }
+  if (role === ROLES.ADMIN) {
+    return "Super Admin Portal";
+  }
+  return "Patient Portal";
+}
 
 export default function PatientPortalLayout() {
   const navigate = useNavigate();
+  const { role, logout } = useAuth();
+  const navItems = getNavItemsByRole(role);
 
   const handleLogout = () => {
-    setAccessToken(null);
+    logout();
     toast.success("Logged out.");
     navigate("/login", { replace: true });
   };
@@ -24,8 +54,8 @@ export default function PatientPortalLayout() {
       <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/95 backdrop-blur-sm">
         <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-4 sm:px-8">
           <div className="flex items-center gap-6">
-            <Link to="/doctors" className="font-semibold text-primary">
-              Patient Portal
+            <Link to={getHomeRouteForRole(role)} className="font-semibold text-primary">
+              {getPortalLabel(role)}
             </Link>
             <nav className="hidden items-center gap-1 sm:flex">
               {navItems.map((item) => (

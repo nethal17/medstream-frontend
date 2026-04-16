@@ -12,17 +12,28 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 
+import CancelAppointmentModal from "@/components/appointments/CancelAppointmentModal";
+import RescheduleAppointmentModal from "@/components/appointments/RescheduleAppointmentModal";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import {
+  extractApiErrorMessage,
+  formatConsultationType,
   formatCurrencyLkr,
   formatDisplayDate,
   formatTimeLabel,
+  getAppointmentStatusBadgeClass,
   toApiDate,
+  toPositiveInt,
 } from "@/lib/appointment-utils";
-import { searchDoctors } from "@/services/appointments";
+import {
+  cancelAppointment,
+  getAppointments,
+  rescheduleAppointment,
+  searchDoctors,
+} from "@/services/appointments";
 
 const consultationOptions = [
   { value: "", label: "All Types" },
@@ -30,54 +41,18 @@ const consultationOptions = [
   { value: "telemedicine", label: "Telemedicine" },
 ];
 
-// TODO(api): Replace dummy appointment history with backend endpoint when available.
-const dummyAppointmentHistory = [
-  {
-    id: "hist-1",
-    doctor: "Dr. Sarah Jenkins",
-    dateTime: "Oct 20, 2024 - 10:00 AM",
-    type: "Physical",
-    status: "Confirmed",
-  },
-  {
-    id: "hist-2",
-    doctor: "Dr. Michael Chen",
-    dateTime: "Oct 15, 2024 - 03:45 PM",
-    type: "Telemedicine",
-    status: "Completed",
-  },
-  {
-    id: "hist-3",
-    doctor: "Dr. Robert Fox",
-    dateTime: "Oct 05, 2024 - 09:00 AM",
-    type: "Physical",
-    status: "Canceled",
-  },
+const historyStatusOptions = [
+  { value: "", label: "All status" },
+  { value: "confirmed", label: "Confirmed" },
+  { value: "pending_payment", label: "Pending payment" },
+  { value: "arrived", label: "Arrived" },
+  { value: "completed", label: "Completed" },
+  { value: "cancelled", label: "Cancelled" },
 ];
-
-// TODO(api): Replace dummy recommendation card with personalized follow-up endpoint.
-const dummyFollowUp = {
-  text: "Based on your recent consultation, we recommend a routine follow-up in 3 months.",
-  period: "Jan 20 - Jan 30, 2025",
-};
-
-function getStatusBadgeClass(status) {
-  const normalized = status.toLowerCase();
-
-  if (normalized === "confirmed") {
-    return "bg-sky-100 text-sky-700";
-  }
-  if (normalized === "completed") {
-    return "bg-emerald-100 text-emerald-700";
-  }
-
-  return "bg-rose-100 text-rose-700";
-}
 
 function DoctorCard({ doctor, onBook }) {
   const firstSlot = doctor.available_slots?.[0];
   const rating = doctor.rating ?? 4.8;
-  // TODO(api): Replace generated initials avatar with doctor profile image URL from API.
   const initials = doctor.full_name
     ?.split(" ")
     .slice(0, 2)
@@ -129,6 +104,10 @@ function DoctorCard({ doctor, onBook }) {
   );
 }
 
+function isActionDisabled(status) {
+  return ["completed", "in_progress", "cancelled"].includes(String(status || "").toLowerCase());
+}
+
 export default function DoctorsPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -137,9 +116,20 @@ export default function DoctorsPage() {
   const [meta, setMeta] = useState({ total: 0, empty_state: false });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+
+  const [historyItems, setHistoryItems] = useState([]);
+  const [historyMeta, setHistoryMeta] = useState({ total: 0, page: 1, size: 5, has_more: false });
+  const [isHistoryLoading, setIsHistoryLoading] = useState(true);
+  const [historyError, setHistoryError] = useState("");
+
+  const [rescheduleTarget, setRescheduleTarget] = useState(null);
+  const [cancelTarget, setCancelTarget] = useState(null);
+  const [isMutationLoading, setIsMutationLoading] = useState(false);
+
   const [selectedConsultationType, setSelectedConsultationType] = useState(
     searchParams.get("consultation_type") || "physical"
   );
+  const [specialtyDraft, setSpecialtyDraft] = useState(searchParams.get("specialty") || "");
 
   const filters = useMemo(() => {
     return {
@@ -150,6 +140,39 @@ export default function DoctorsPage() {
     };
   }, [searchParams]);
 
+  const historyFilters = useMemo(() => {
+    return {
+      page: toPositiveInt(searchParams.get("history_page"), 1),
+      size: 5,
+      status: searchParams.get("history_status") || "",
+      consultation_type: searchParams.get("history_consultation_type") || "",
+      date: searchParams.get("history_date") || "",
+    };
+  }, [searchParams]);
+
+  useEffect(() => {
+    setSpecialtyDraft(filters.specialty);
+  }, [filters.specialty]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const current = searchParams.get("specialty") || "";
+      if (current === specialtyDraft.trim()) {
+        return;
+      }
+
+      const next = new URLSearchParams(searchParams);
+      if (specialtyDraft.trim()) {
+        next.set("specialty", specialtyDraft.trim());
+      } else {
+        next.delete("specialty");
+      }
+      setSearchParams(next);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchParams, setSearchParams, specialtyDraft]);
+
   useEffect(() => {
     let ignore = false;
 
@@ -159,7 +182,6 @@ export default function DoctorsPage() {
 
       try {
         const payload = await searchDoctors(filters);
-
         if (ignore) {
           return;
         }
@@ -174,18 +196,9 @@ export default function DoctorsPage() {
           return;
         }
 
-        const status = requestError?.response?.status;
-
         setDoctors([]);
         setMeta({ total: 0, empty_state: false });
-        if (status === 401 || status === 403) {
-          setError("Access denied. Please login as a patient and try again.");
-          toast.error("Authorization required for doctor search.");
-        } else {
-          setError("Could not fetch doctors right now.");
-          toast.error("Unable to load doctors.");
-        }
-        console.error(requestError);
+        setError(extractApiErrorMessage(requestError, "Could not fetch doctors right now."));
       } finally {
         if (!ignore) {
           setIsLoading(false);
@@ -200,13 +213,60 @@ export default function DoctorsPage() {
     };
   }, [filters]);
 
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadHistory() {
+      setIsHistoryLoading(true);
+      setHistoryError("");
+
+      try {
+        const payload = await getAppointments(historyFilters);
+        if (ignore) {
+          return;
+        }
+
+        setHistoryItems(payload?.items || []);
+        setHistoryMeta({
+          total: payload?.total || 0,
+          page: payload?.page || historyFilters.page,
+          size: payload?.size || historyFilters.size,
+          has_more: Boolean(payload?.has_more),
+        });
+      } catch (requestError) {
+        if (ignore) {
+          return;
+        }
+
+        setHistoryError(extractApiErrorMessage(requestError, "Unable to load appointment history."));
+        setHistoryItems([]);
+      } finally {
+        if (!ignore) {
+          setIsHistoryLoading(false);
+        }
+      }
+    }
+
+    loadHistory();
+
+    return () => {
+      ignore = true;
+    };
+  }, [historyFilters]);
+
   const updateFilter = (key, value) => {
+    const current = searchParams.get(key) || "";
+    const normalized = value || "";
+    if (current === normalized) {
+      return;
+    }
+
     const next = new URLSearchParams(searchParams);
 
-    if (!value) {
+    if (!normalized) {
       next.delete(key);
     } else {
-      next.set(key, value);
+      next.set(key, normalized);
     }
 
     setSearchParams(next);
@@ -243,8 +303,89 @@ export default function DoctorsPage() {
   };
 
   const clearAll = () => {
-    setSearchParams({ date: toApiDate(new Date()) });
+    const next = new URLSearchParams(searchParams);
+    next.set("date", toApiDate(new Date()));
+    next.delete("specialty");
+    next.delete("clinic_id");
+    next.delete("consultation_type");
+    setSearchParams(next);
     setSelectedConsultationType("physical");
+  };
+
+  const updateHistoryFilter = (key, value) => {
+    const next = new URLSearchParams(searchParams);
+    next.set("history_page", "1");
+
+    if (value) {
+      next.set(key, value);
+    } else {
+      next.delete(key);
+    }
+
+    setSearchParams(next);
+  };
+
+  const updateHistoryPage = (nextPage) => {
+    const next = new URLSearchParams(searchParams);
+    next.set("history_page", String(nextPage));
+    setSearchParams(next);
+  };
+
+  const refreshHistoryAndDoctors = async () => {
+    const [doctorPayload, historyPayload] = await Promise.all([
+      searchDoctors(filters),
+      getAppointments(historyFilters),
+    ]);
+
+    setDoctors(doctorPayload?.results || []);
+    setMeta({
+      total: doctorPayload?.total || 0,
+      empty_state: Boolean(doctorPayload?.empty_state),
+    });
+
+    setHistoryItems(historyPayload?.items || []);
+    setHistoryMeta({
+      total: historyPayload?.total || 0,
+      page: historyPayload?.page || historyFilters.page,
+      size: historyPayload?.size || historyFilters.size,
+      has_more: Boolean(historyPayload?.has_more),
+    });
+  };
+
+  const handleReschedule = async (payload) => {
+    if (!rescheduleTarget?.appointment_id) {
+      return;
+    }
+
+    setIsMutationLoading(true);
+    try {
+      await rescheduleAppointment(rescheduleTarget.appointment_id, payload);
+      toast.success("Appointment rescheduled successfully.");
+      setRescheduleTarget(null);
+      await refreshHistoryAndDoctors();
+    } catch (errorResponse) {
+      toast.error(extractApiErrorMessage(errorResponse, "Unable to reschedule appointment."));
+    } finally {
+      setIsMutationLoading(false);
+    }
+  };
+
+  const handleCancel = async (reason) => {
+    if (!cancelTarget?.appointment_id) {
+      return;
+    }
+
+    setIsMutationLoading(true);
+    try {
+      await cancelAppointment(cancelTarget.appointment_id, reason ? { reason } : {});
+      toast.success("Appointment cancelled successfully.");
+      setCancelTarget(null);
+      await refreshHistoryAndDoctors();
+    } catch (errorResponse) {
+      toast.error(extractApiErrorMessage(errorResponse, "Unable to cancel appointment."));
+    } finally {
+      setIsMutationLoading(false);
+    }
   };
 
   return (
@@ -261,8 +402,8 @@ export default function DoctorsPage() {
             <div className="relative">
               <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" />
               <Input
-                value={filters.specialty}
-                onChange={(event) => updateFilter("specialty", event.target.value)}
+                value={specialtyDraft}
+                onChange={(event) => setSpecialtyDraft(event.target.value)}
                 className="h-11 rounded-lg border-slate-300 bg-white pl-9"
                 placeholder="Search doctor, specialty, or clinic"
               />
@@ -361,7 +502,7 @@ export default function DoctorsPage() {
           <Card>
             <CardContent className="py-8 text-center">
               <p className="font-medium">{error}</p>
-              <Button className="mt-4" variant="outline" onClick={() => setSearchParams(searchParams)}>
+              <Button className="mt-4" variant="outline" onClick={() => updateFilter("date", filters.date)}>
                 Retry
               </Button>
             </CardContent>
@@ -410,61 +551,163 @@ export default function DoctorsPage() {
             Appointment History
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto rounded-lg border border-slate-200">
-            <table className="w-full min-w-[700px] text-left text-sm">
-              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-                <tr>
-                  <th className="px-4 py-3">Doctor</th>
-                  <th className="px-4 py-3">Date & Time</th>
-                  <th className="px-4 py-3">Type</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {dummyAppointmentHistory.map((item) => (
-                  <tr key={item.id} className="border-t">
-                    <td className="px-4 py-3 font-medium text-slate-800">{item.doctor}</td>
-                    <td className="px-4 py-3 text-slate-600">{item.dateTime}</td>
-                    <td className="px-4 py-3 text-slate-600">{item.type}</td>
-                    <td className="px-4 py-3">
-                      <span className={["rounded-full px-2 py-1 text-xs font-medium", getStatusBadgeClass(item.status)].join(" ")}>
-                        {item.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="inline-flex gap-2">
-                        <Button size="xs" variant="outline">
-                          Reschedule
-                        </Button>
-                        <Button size="xs" variant="destructive">
-                          Cancel
-                        </Button>
-                      </div>
-                    </td>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 md:grid-cols-4">
+            <Input
+              type="date"
+              value={historyFilters.date}
+              onChange={(event) => updateHistoryFilter("history_date", event.target.value)}
+            />
+            <select
+              value={historyFilters.status}
+              onChange={(event) => updateHistoryFilter("history_status", event.target.value)}
+              className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm"
+            >
+              {historyStatusOptions.map((option) => (
+                <option key={option.value || "all-status"} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <select
+              value={historyFilters.consultation_type}
+              onChange={(event) => updateHistoryFilter("history_consultation_type", event.target.value)}
+              className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm"
+            >
+              {consultationOptions.map((option) => (
+                <option key={option.value || "all-types"} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <Button variant="outline" onClick={() => updateHistoryPage(1)}>
+              Apply filters
+            </Button>
+          </div>
+
+          {isHistoryLoading ? (
+            <div className="flex items-center justify-center rounded-xl border bg-background p-8">
+              <Spinner className="size-7 text-primary" />
+            </div>
+          ) : null}
+
+          {!isHistoryLoading && historyError ? (
+            <Card>
+              <CardContent className="py-6 text-center">
+                <p className="font-medium">{historyError}</p>
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {!isHistoryLoading && !historyError ? (
+            <div className="overflow-x-auto rounded-lg border border-slate-200">
+              <table className="w-full min-w-[880px] text-left text-sm">
+                <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                  <tr>
+                    <th className="px-4 py-3">Doctor</th>
+                    <th className="px-4 py-3">Date</th>
+                    <th className="px-4 py-3">Start</th>
+                    <th className="px-4 py-3">Type</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3 text-right">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {historyItems.map((item) => (
+                    <tr key={item.appointment_id} className="border-t">
+                      <td className="px-4 py-3 font-medium text-slate-800">{item.doctor_name}</td>
+                      <td className="px-4 py-3 text-slate-600">{formatDisplayDate(item.date)}</td>
+                      <td className="px-4 py-3 text-slate-600">{formatTimeLabel(item.start_time)}</td>
+                      <td className="px-4 py-3 text-slate-600">{formatConsultationType(item.consultation_type)}</td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={[
+                            "rounded-full px-2 py-1 text-xs font-medium",
+                            getAppointmentStatusBadgeClass(item.status),
+                          ].join(" ")}
+                        >
+                          {item.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="inline-flex gap-2">
+                          <Button
+                            size="xs"
+                            variant="outline"
+                            disabled={isActionDisabled(item.status)}
+                            onClick={() => setRescheduleTarget(item)}
+                          >
+                            Reschedule
+                          </Button>
+                          <Button
+                            size="xs"
+                            variant="destructive"
+                            disabled={isActionDisabled(item.status)}
+                            onClick={() => setCancelTarget(item)}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {historyItems.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-8 text-center text-sm text-muted-foreground">
+                        No appointment records found.
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">Total: {historyMeta.total}</p>
+            <div className="inline-flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={historyMeta.page <= 1}
+                onClick={() => updateHistoryPage(historyMeta.page - 1)}
+              >
+                Previous
+              </Button>
+              <span className="text-sm text-muted-foreground">Page {historyMeta.page}</span>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!historyMeta.has_more}
+                onClick={() => updateHistoryPage(historyMeta.page + 1)}
+              >
+                Next
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
 
-      <Card className="border border-cyan-100 bg-gradient-to-r from-sky-50 to-cyan-50 py-5 shadow-sm">
-        <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-lg font-semibold text-slate-900">Recommended Follow-up</p>
-            <p className="text-sm text-slate-600">{dummyFollowUp.text}</p>
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <p className="text-sm text-slate-600">Suggested period: {dummyFollowUp.period}</p>
-            <Button size="sm" className="bg-sky-600 text-white hover:bg-sky-700">
-              Book Follow-up
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      <RescheduleAppointmentModal
+        key={rescheduleTarget?.appointment_id || "reschedule-modal"}
+        open={Boolean(rescheduleTarget)}
+        initialDate={rescheduleTarget?.date || ""}
+        initialStartTime={rescheduleTarget?.start_time || ""}
+        initialConsultationType={rescheduleTarget?.consultation_type || "physical"}
+        isSubmitting={isMutationLoading}
+        onClose={() => setRescheduleTarget(null)}
+        onConfirm={handleReschedule}
+      />
+
+      <CancelAppointmentModal
+        key={cancelTarget?.appointment_id || "cancel-modal"}
+        open={Boolean(cancelTarget)}
+        title="Cancel booking"
+        confirmLabel="Cancel booking"
+        isSubmitting={isMutationLoading}
+        onClose={() => setCancelTarget(null)}
+        onConfirm={handleCancel}
+      />
     </section>
   );
 }

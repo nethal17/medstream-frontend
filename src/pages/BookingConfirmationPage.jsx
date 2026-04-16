@@ -1,24 +1,32 @@
 import { CalendarDays, CheckCircle2, Clock3, CreditCard, Hospital, UserRound } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 
+import CancelAppointmentModal from "@/components/appointments/CancelAppointmentModal";
+import RescheduleAppointmentModal from "@/components/appointments/RescheduleAppointmentModal";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
+  extractApiErrorMessage,
   formatConsultationType,
   formatCurrencyLkr,
   formatDisplayDate,
   formatTimeLabel,
 } from "@/lib/appointment-utils";
+import { cancelAppointment, rescheduleAppointment } from "@/services/appointments";
 
 export default function BookingConfirmationPage() {
   const location = useLocation();
   const navigate = useNavigate();
 
   const state = location.state || {};
-  const appointment = state.appointment || null;
   const clinic = state.clinic || null;
+
+  const [appointment, setAppointment] = useState(state.appointment || null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showRescheduleModal, setShowRescheduleModal] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
 
   useEffect(() => {
     if (!appointment) {
@@ -35,6 +43,34 @@ export default function BookingConfirmationPage() {
   const startTime = appointment.start_time || state.selectedStartTime;
   const doctorName = appointment.doctor_name || state.doctor?.full_name || "-";
   const clinicName = appointment.clinic_name || clinic?.clinic_name || "-";
+
+  const handleReschedule = async (payload) => {
+    setIsSubmitting(true);
+    try {
+      const next = await rescheduleAppointment(appointment.appointment_id, payload);
+      setAppointment(next);
+      toast.success("Appointment rescheduled.");
+      setShowRescheduleModal(false);
+    } catch (error) {
+      toast.error(extractApiErrorMessage(error, "Unable to reschedule appointment."));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleCancel = async (reason) => {
+    setIsSubmitting(true);
+    try {
+      const next = await cancelAppointment(appointment.appointment_id, reason ? { reason } : {});
+      setAppointment((prev) => ({ ...prev, ...next }));
+      toast.success("Appointment cancelled.");
+      setShowCancelModal(false);
+    } catch (error) {
+      toast.error(extractApiErrorMessage(error, "Unable to cancel appointment."));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <section className="mx-auto max-w-3xl space-y-5">
@@ -69,7 +105,10 @@ export default function BookingConfirmationPage() {
             {clinicName}
           </p>
           <p className="text-sm text-muted-foreground">
-            Consultation Type: <span className="font-medium text-foreground">{formatConsultationType(appointment.consultation_type || state.selectedType)}</span>
+            Consultation Type:{" "}
+            <span className="font-medium text-foreground">
+              {formatConsultationType(appointment.consultation_type || state.selectedType)}
+            </span>
           </p>
           <p className="inline-flex items-center gap-2 text-sm text-muted-foreground">
             <CreditCard className="size-4" />
@@ -86,8 +125,12 @@ export default function BookingConfirmationPage() {
 
       <div className="grid gap-3 sm:grid-cols-3">
         <Button variant="outline">Add to Calendar</Button>
-        <Button variant="outline">Reschedule</Button>
-        <Button variant="destructive">Cancel Booking</Button>
+        <Button variant="outline" onClick={() => setShowRescheduleModal(true)} disabled={isSubmitting}>
+          Reschedule
+        </Button>
+        <Button variant="destructive" onClick={() => setShowCancelModal(true)} disabled={isSubmitting}>
+          Cancel Booking
+        </Button>
       </div>
 
       <Card className="gap-2 bg-primary/5">
@@ -101,6 +144,27 @@ export default function BookingConfirmationPage() {
           <Link to="/doctors">Return to Search</Link>
         </Button>
       </div>
+
+      <RescheduleAppointmentModal
+        key={`reschedule-${appointment?.appointment_id || "appointment"}`}
+        open={showRescheduleModal}
+        initialDate={appointment?.date || ""}
+        initialStartTime={appointment?.start_time || ""}
+        initialConsultationType={appointment?.consultation_type || "physical"}
+        isSubmitting={isSubmitting}
+        onClose={() => setShowRescheduleModal(false)}
+        onConfirm={handleReschedule}
+      />
+
+      <CancelAppointmentModal
+        key={`cancel-${appointment?.appointment_id || "appointment"}`}
+        open={showCancelModal}
+        title="Cancel this booking"
+        confirmLabel="Cancel booking"
+        isSubmitting={isSubmitting}
+        onClose={() => setShowCancelModal(false)}
+        onConfirm={handleCancel}
+      />
     </section>
   );
 }

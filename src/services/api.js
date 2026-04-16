@@ -1,4 +1,6 @@
 import axios from "axios";
+import { getRoleFromToken } from "@/lib/auth";
+
 const BASE_URL =
   import.meta.env.VITE_API_URL || "http://localhost:8080";
 const ACCESS_TOKEN_STORAGE_KEY = "medstream_access_token";
@@ -27,6 +29,14 @@ function getStoredAccessToken() {
   }
 
   return import.meta.env.VITE_PATIENT_ACCESS_TOKEN || null;
+}
+
+function getStoredRefreshToken() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  return window.localStorage.getItem(REFRESH_TOKEN_STORAGE_KEY);
 }
 
 function persistAccessToken(token) {
@@ -63,16 +73,35 @@ const rawAxios = axios.create({
   withCredentials: true 
 });
 
+function notifyAuthChanged() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.dispatchEvent(new Event("auth:changed"));
+}
+
 
 let accessToken = getStoredAccessToken();
 
 export const setAccessToken = (token) => {
   accessToken = token;
   persistAccessToken(token);
+  notifyAuthChanged();
 };
 export const getAccessToken = () => accessToken;
+export const getRefreshToken = () => getStoredRefreshToken();
 export const setRefreshToken = (token) => {
   persistRefreshToken(token);
+  notifyAuthChanged();
+};
+export const getCurrentRole = () => getRoleFromToken(accessToken);
+export const clearAuthTokens = () => {
+  setAccessToken(null);
+  setRefreshToken(null);
+};
+export const logout = () => {
+  clearAuthTokens();
 };
 
 // Attach access token to outgoing requests
@@ -103,7 +132,7 @@ api.interceptors.response.use(
     // Do not auto refresh while hitting auth endpoints
     if (error.response?.status === 401 && requestUrl.includes("/auth/")) {
       if (requestUrl.includes("/auth/refresh-token")) {
-        setAccessToken(null);
+        clearAuthTokens();
         return Promise.reject(error);
       }
 
@@ -145,7 +174,7 @@ api.interceptors.response.use(
         return api(originalRequest);
       } catch (refreshError) {
         processQueue(refreshError, null);
-        setAccessToken(null);
+        clearAuthTokens();
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;
