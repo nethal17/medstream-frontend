@@ -1,5 +1,57 @@
 import axios from "axios";
-const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api/v1";
+const BASE_URL =
+  import.meta.env.VITE_API_URL || "http://localhost:8080";
+const ACCESS_TOKEN_STORAGE_KEY = "medstream_access_token";
+const REFRESH_TOKEN_STORAGE_KEY = "medstream_refresh_token";
+
+function extractAccessToken(payload) {
+  return (
+    payload?.data?.accessToken ||
+    payload?.data?.access_token ||
+    payload?.accessToken ||
+    payload?.access_token ||
+    payload?.data?.token ||
+    payload?.token ||
+    null
+  );
+}
+
+function getStoredAccessToken() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const fromStorage = window.localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY);
+  if (fromStorage) {
+    return fromStorage;
+  }
+
+  return import.meta.env.VITE_PATIENT_ACCESS_TOKEN || null;
+}
+
+function persistAccessToken(token) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  if (token) {
+    window.localStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, token);
+  } else {
+    window.localStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY);
+  }
+}
+
+function persistRefreshToken(token) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  if (token) {
+    window.localStorage.setItem(REFRESH_TOKEN_STORAGE_KEY, token);
+  } else {
+    window.localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
+  }
+}
 
 const api = axios.create({
   baseURL: BASE_URL,
@@ -12,10 +64,16 @@ const rawAxios = axios.create({
 });
 
 
-let accessToken = null;
+let accessToken = getStoredAccessToken();
 
-export const setAccessToken = (token) => { accessToken = token; };
+export const setAccessToken = (token) => {
+  accessToken = token;
+  persistAccessToken(token);
+};
 export const getAccessToken = () => accessToken;
+export const setRefreshToken = (token) => {
+  persistRefreshToken(token);
+};
 
 // Attach access token to outgoing requests
 api.interceptors.request.use((config) => {
@@ -75,7 +133,12 @@ api.interceptors.response.use(
 
       try {
         const res = await rawAxios.post("/auth/refresh-token");
-        const newToken = res.data.data.accessToken;
+        const newToken = extractAccessToken(res.data);
+
+        if (!newToken) {
+          throw new Error("Refresh token response did not include access token.");
+        }
+
         setAccessToken(newToken);
         processQueue(null, newToken);
         originalRequest.headers.Authorization = `Bearer ${newToken}`;
