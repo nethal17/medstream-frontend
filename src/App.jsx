@@ -12,6 +12,8 @@ import JoinWithUsPage from "@/pages/JoinWithUsPage";
 import LoginPage from "@/pages/LoginPage";
 import RegisterPage from "@/pages/RegisterPage";
 import SuperAdminDashboardPage from "@/pages/SuperAdminDashboardPage";
+import PaymentSuccessPage from "@/pages/PaymentSuccessPage";
+import PaymentCancelPage from "@/pages/PaymentCancelPage";
 import ClinicAdminDashboardPage from "@/pages/clinic-admin/ClinicAdminDashboardPage";
 import DoctorDashboardPage from "@/pages/doctor/DoctorDashboardPage";
 import PatientDashboardPage from "@/pages/patient/PatientDashboardPage";
@@ -116,6 +118,8 @@ export default function App() {
           <Route element={<RoleRoute allowedRoles={[ROLES.PATIENT]} />}>
             <Route path="/doctors/:doctorId" element={<DoctorBookingPage />} />
             <Route path="/doctors/confirmation" element={<BookingConfirmationPage />} />
+            <Route path="/payment/success" element={<PaymentSuccessPage />} />
+            <Route path="/payment/cancel" element={<PaymentCancelPage />} />
             <Route path="/patient/profile/*" element={<PatientDashboardPage />} />
           </Route>
 
