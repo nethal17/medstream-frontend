@@ -73,6 +73,11 @@ const rawAxios = axios.create({
   withCredentials: true 
 });
 
+export const publicApi = axios.create({
+  baseURL: BASE_URL,
+  withCredentials: true,
+});
+
 function notifyAuthChanged() {
   if (typeof window === "undefined") {
     return;

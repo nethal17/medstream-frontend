@@ -92,16 +92,16 @@ export function getAppointmentStatusBadgeClass(status) {
   const normalized = String(status || "").toLowerCase();
 
   if (["confirmed", "arrived"].includes(normalized)) {
-    return "bg-sky-100 text-sky-700";
+    return "bg-blue-100/70 text-blue-700";
   }
   if (["completed"].includes(normalized)) {
-    return "bg-emerald-100 text-emerald-700";
+    return "bg-emerald-100/70 text-emerald-700";
   }
   if (["pending_payment", "pending"].includes(normalized)) {
-    return "bg-amber-100 text-amber-700";
+    return "bg-amber-100/70 text-amber-700";
   }
 
-  return "bg-rose-100 text-rose-700";
+  return "bg-rose-100/70 text-rose-700";
 }
 
 export function extractApiErrorMessage(error, fallback = "Request failed. Please try again.") {

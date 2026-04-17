@@ -79,7 +79,7 @@ export function getRoleFromToken(token) {
 
 export function getHomeRouteForRole(role) {
   if (role === ROLES.PATIENT) {
-    return "/doctors";
+    return "/";
   }
   if (role === ROLES.DOCTOR) {
     return "/doctor/dashboard";

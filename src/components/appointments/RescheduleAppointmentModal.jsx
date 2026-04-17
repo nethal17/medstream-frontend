@@ -23,8 +23,8 @@ export default function RescheduleAppointmentModal({
   const canSubmit = Boolean(date && startTime && consultationType);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
-      <Card className="w-full max-w-md border border-slate-200 bg-white">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-800/25 px-4 backdrop-blur-[2px]">
+      <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>Reschedule appointment</CardTitle>
           <p className="text-sm text-muted-foreground">Choose a new slot and consultation mode.</p>
@@ -36,7 +36,7 @@ export default function RescheduleAppointmentModal({
               type="date"
               value={date}
               onChange={(event) => setDate(event.target.value)}
-              className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+              className="h-10 w-full rounded-lg border border-input bg-card px-3 text-sm"
             />
           </div>
 
@@ -46,7 +46,7 @@ export default function RescheduleAppointmentModal({
               type="time"
               value={startTime}
               onChange={(event) => setStartTime(event.target.value)}
-              className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+              className="h-10 w-full rounded-lg border border-input bg-card px-3 text-sm"
             />
           </div>
 
@@ -55,7 +55,7 @@ export default function RescheduleAppointmentModal({
             <select
               value={consultationType}
               onChange={(event) => setConsultationType(event.target.value)}
-              className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+              className="h-10 w-full rounded-lg border border-input bg-card px-3 text-sm"
             >
               <option value="physical">In-person</option>
               <option value="telemedicine">Telemedicine</option>
