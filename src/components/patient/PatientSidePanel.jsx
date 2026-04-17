@@ -1,8 +1,9 @@
-import { ClipboardPlus, FileText, LayoutDashboard, Pill, UserRound } from "lucide-react";
+import { CalendarDays, ClipboardPlus, FileText, LayoutDashboard, Pill, UserRound } from "lucide-react";
 import { NavLink } from "react-router-dom";
 
 const navItems = [
   { to: "overview", label: "Overview", icon: LayoutDashboard },
+  { to: "appointments", label: "My Appointments", icon: CalendarDays },
   { to: "profile-setup", label: "Profile Setup", icon: UserRound },
   { to: "reports", label: "My Reports", icon: FileText },
   { to: "prescriptions", label: "My Prescriptions", icon: Pill },
