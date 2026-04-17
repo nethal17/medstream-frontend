@@ -24,6 +24,7 @@ import {
   toApiDate,
 } from "@/lib/appointment-utils";
 import { bookAppointment, getDoctorProfile } from "@/services/appointments";
+import { initiatePayment } from "@/services/payments";
 
 function getClinicTypes(clinic) {
   const set = new Set();
@@ -180,7 +181,30 @@ export default function DoctorBookingPage() {
       };
 
       const appointment = await bookAppointment(bookingPayload, idempotencyKey);
-      toast.success("Appointment request submitted.");
+
+      // If payment is required, redirect to Stripe Checkout
+      if (
+        appointment.payment_status === "pending" &&
+        appointment.payment_id
+      ) {
+        toast.success("Appointment created. Redirecting to payment…");
+
+        try {
+          const paymentResult = await initiatePayment(appointment.payment_id);
+
+          if (paymentResult?.gateway_url) {
+            window.location.href = paymentResult.gateway_url;
+            return;
+          }
+        } catch (paymentError) {
+          // Payment initiation failed — still take to confirmation page
+          // so the user can retry from there
+          console.error("Payment initiation failed:", paymentError);
+          toast.error("Could not start payment. You can retry from the confirmation page.");
+        }
+      } else {
+        toast.success("Appointment request submitted.");
+      }
 
       navigate("/doctors/confirmation", {
         state: {

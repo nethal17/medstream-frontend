@@ -1,4 +1,4 @@
-import { CalendarDays, CheckCircle2, Clock3, CreditCard, Hospital, UserRound } from "lucide-react";
+import { CalendarDays, CheckCircle2, Clock3, CreditCard, Hospital, UserRound, AlertCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
@@ -15,6 +15,7 @@ import {
   formatTimeLabel,
 } from "@/lib/appointment-utils";
 import { cancelAppointment, rescheduleAppointment } from "@/services/appointments";
+import { initiatePayment } from "@/services/payments";
 
 export default function BookingConfirmationPage() {
   const location = useLocation();
@@ -43,6 +44,28 @@ export default function BookingConfirmationPage() {
   const startTime = appointment.start_time || state.selectedStartTime;
   const doctorName = appointment.doctor_name || state.doctor?.full_name || "-";
   const clinicName = appointment.clinic_name || clinic?.clinic_name || "-";
+
+  const isPendingPayment =
+    appointment.payment_status === "pending" && appointment.payment_id;
+
+  const handlePayNow = async () => {
+    if (!appointment.payment_id) return;
+    setIsSubmitting(true);
+    try {
+      const result = await initiatePayment(appointment.payment_id);
+      if (result?.gateway_url) {
+        window.location.href = result.gateway_url;
+      } else {
+        toast.error("Could not start payment. Please try again.");
+      }
+    } catch (error) {
+      toast.error(
+        error?.response?.data?.detail || "Payment initiation failed."
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const handleReschedule = async (payload) => {
     setIsSubmitting(true);
@@ -74,13 +97,30 @@ export default function BookingConfirmationPage() {
 
   return (
     <section className="mx-auto max-w-3xl space-y-5">
-      <Card className="items-center gap-2 bg-background py-10 text-center">
-        <CheckCircle2 className="size-14 text-primary" />
-        <CardTitle className="text-4xl">Booking Confirmed!</CardTitle>
-        <p className="max-w-xl text-muted-foreground">
-          Your appointment has been successfully scheduled. A confirmation email and calendar invite will be shared.
-        </p>
-      </Card>
+      {isPendingPayment ? (
+        <Card className="items-center gap-2 bg-background py-10 text-center">
+          <AlertCircle className="size-14 text-amber-500" />
+          <CardTitle className="text-4xl">Payment Required</CardTitle>
+          <p className="max-w-xl text-muted-foreground">
+            Your appointment has been reserved. Please complete payment to confirm your booking.
+          </p>
+          <Button
+            className="mt-3"
+            onClick={handlePayNow}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? "Redirecting…" : "Pay Now"}
+          </Button>
+        </Card>
+      ) : (
+        <Card className="items-center gap-2 bg-background py-10 text-center">
+          <CheckCircle2 className="size-14 text-primary" />
+          <CardTitle className="text-4xl">Booking Confirmed!</CardTitle>
+          <p className="max-w-xl text-muted-foreground">
+            Your appointment has been successfully scheduled. A confirmation email and calendar invite will be shared.
+          </p>
+        </Card>
+      )}
 
       <Card className="gap-3 bg-background">
         <CardHeader className="border-b pb-4">
