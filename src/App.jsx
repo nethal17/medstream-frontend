@@ -5,6 +5,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { useAuth } from "@/contexts/useAuth";
 import { ROLES, isAllowedRole } from "@/lib/auth";
 import BookingConfirmationPage from "@/pages/BookingConfirmationPage";
+import ContactUsPage from "@/pages/ContactUsPage";
 import DoctorBookingPage from "@/pages/DoctorBookingPage";
 import DoctorsPage from "@/pages/DoctorsPage";
 import HomePage from "@/pages/HomePage";
@@ -101,6 +102,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/" element={<HomePage />} />
+      <Route path="/contact-us" element={<ContactUsPage />} />
       <Route path="/join-with-us" element={<JoinWithUsPage />} />
       <Route element={<PatientPortalLayout />}>
         <Route path="/doctors" element={<DoctorsPage />} />
