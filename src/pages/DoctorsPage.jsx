@@ -7,6 +7,7 @@ import {
   Star,
   Stethoscope,
   UserRound,
+  Video,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -34,6 +35,7 @@ import {
   rescheduleAppointment,
   searchDoctors,
 } from "@/services/appointments";
+import { createTelemedicineJoinLink } from "@/services/telemedicine";
 
 const consultationOptions = [
   { value: "", label: "All Types" },
@@ -106,6 +108,11 @@ function DoctorCard({ doctor, onBook }) {
 
 function isActionDisabled(status) {
   return ["completed", "in_progress", "cancelled"].includes(String(status || "").toLowerCase());
+}
+
+function canJoinTelemedicine(item) {
+  const status = String(item?.status || "").toLowerCase();
+  return item?.consultation_type === "telemedicine" && !["cancelled", "completed", "no_show"].includes(status);
 }
 
 export default function DoctorsPage() {
@@ -388,6 +395,23 @@ export default function DoctorsPage() {
     }
   };
 
+  const handleJoinSession = async (appointmentId) => {
+    setIsMutationLoading(true);
+    try {
+      const payload = await createTelemedicineJoinLink(appointmentId);
+      if (!payload?.join_url) {
+        throw new Error("Join link missing in response.");
+      }
+
+      window.open(payload.join_url, "_blank", "noopener,noreferrer");
+      toast.success("Telemedicine session opened.");
+    } catch (errorResponse) {
+      toast.error(extractApiErrorMessage(errorResponse, "Unable to open telemedicine session."));
+    } finally {
+      setIsMutationLoading(false);
+    }
+  };
+
   return (
     <section className="space-y-8">
       <Card className="gap-5 border border-sky-100 bg-gradient-to-b from-sky-50/70 to-white py-7 shadow-sm">
@@ -530,8 +554,9 @@ export default function DoctorsPage() {
                 onBook={() => {
                   const next = new URLSearchParams();
                   next.set("date", filters.date);
-                  if (filters.consultation_type) {
-                    next.set("consultation_type", filters.consultation_type);
+                  const chosenType = filters.consultation_type || selectedConsultationType;
+                  if (chosenType) {
+                    next.set("consultation_type", chosenType);
                   }
                   if (doctor.clinic_id) {
                     next.set("clinic_id", doctor.clinic_id);
@@ -631,6 +656,15 @@ export default function DoctorsPage() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="inline-flex gap-2">
+                          <Button
+                            size="xs"
+                            variant="outline"
+                            disabled={!canJoinTelemedicine(item) || isMutationLoading}
+                            onClick={() => handleJoinSession(item.appointment_id)}
+                          >
+                            <Video className="size-3" />
+                            Join
+                          </Button>
                           <Button
                             size="xs"
                             variant="outline"

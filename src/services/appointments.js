@@ -60,6 +60,11 @@ export async function markAppointmentCompleted(appointmentId) {
   return unwrapData(response.data);
 }
 
+export async function markAppointmentTechnicalFailure(appointmentId, payload) {
+  const response = await api.post(`/appointments/appointments/${appointmentId}/technical-failure`, payload);
+  return unwrapData(response.data);
+}
+
 export async function suggestFollowUp(payload) {
   const response = await api.post("/appointments/appointments/follow-ups/suggest", payload);
   return unwrapData(response.data);
@@ -104,6 +109,13 @@ export async function getAdminStatistics(params = {}) {
   return unwrapData(response.data);
 }
 
+export async function getAdminTelemedicineLiveStatuses(params = {}) {
+  const response = await api.get("/appointments/admin/telemedicine/live-statuses", {
+    params: cleanParams(params),
+  });
+  return unwrapData(response.data);
+}
+
 export async function getActivePolicy() {
   const response = await api.get("/appointments/admin/policies/active");
   return unwrapData(response.data);
@@ -137,6 +149,7 @@ export const appointmentApi = {
   cancelAppointment,
   markAppointmentArrived,
   markAppointmentCompleted,
+  markAppointmentTechnicalFailure,
 };
 
 export const adminAppointmentApi = {
@@ -145,6 +158,7 @@ export const adminAppointmentApi = {
   adminMarkNoShow,
   getAppointmentStatusHistory,
   getAdminStatistics,
+  getAdminTelemedicineLiveStatuses,
 };
 
 export const policyApi = {

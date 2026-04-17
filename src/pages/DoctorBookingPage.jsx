@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import {
+  extractApiErrorMessage,
   formatConsultationType,
   formatCurrencyLkr,
   formatDisplayDate,
@@ -38,6 +39,31 @@ function getClinicTypes(clinic) {
   });
 
   return Array.from(set);
+}
+
+function getClinicSlotsByType(clinic, consultationType) {
+  if (!clinic) {
+    return [];
+  }
+
+  const fromAvailability = Array.isArray(clinic.availability)
+    ? clinic.availability
+        .filter((entry) => !consultationType || entry.consultation_type === consultationType)
+        .flatMap((entry) => entry.available_slots || entry.slots || [])
+    : [];
+
+  const baseSlots = clinic.available_slots || [];
+  const merged = fromAvailability.length > 0 ? fromAvailability : baseSlots;
+  const seen = new Set();
+
+  return merged.filter((slot) => {
+    const key = `${slot?.start_time || ""}-${slot?.end_time || ""}`;
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
 }
 
 export default function DoctorBookingPage() {
@@ -106,7 +132,10 @@ export default function DoctorBookingPage() {
   const clinics = doctorProfile?.clinics || [];
   const selectedClinic = clinics.find((clinicItem) => clinicItem.clinic?.clinic_id === selectedClinicId) || null;
   const clinicTypes = getClinicTypes(selectedClinic);
-  const slots = selectedClinic?.available_slots || [];
+  const slots = useMemo(
+    () => getClinicSlotsByType(selectedClinic, selectedType),
+    [selectedClinic, selectedType]
+  );
 
   const canBook = Boolean(selectedClinicId && selectedType && selectedStartTime);
 
@@ -127,6 +156,7 @@ export default function DoctorBookingPage() {
 
   const updateType = (type) => {
     setSelectedType(type);
+    setSelectedStartTime("");
 
     const next = new URLSearchParams(searchParams);
     next.set("consultation_type", type);
@@ -169,7 +199,7 @@ export default function DoctorBookingPage() {
         toast.error("This slot is already booked. Please choose another time.");
         await loadProfile();
       } else if (status === 422) {
-        toast.error("Doctor does not offer telemedicine at this clinic.");
+        toast.error(extractApiErrorMessage(requestError, "Selected slot is invalid for this consultation type."));
       } else {
         toast.error("Booking failed. Please try again.");
       }

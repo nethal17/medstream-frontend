@@ -1,8 +1,9 @@
-import { CheckCircle2, ClipboardCheck, UserCheck } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ClipboardCheck, UserCheck, Video } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 
+import CancelAppointmentModal from "@/components/appointments/CancelAppointmentModal";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
@@ -17,7 +18,9 @@ import {
   getAppointments,
   markAppointmentArrived,
   markAppointmentCompleted,
+  markAppointmentTechnicalFailure,
 } from "@/services/appointments";
+import { createTelemedicineJoinLink } from "@/services/telemedicine";
 
 function canMarkArrived(status) {
   return ["confirmed", "pending_payment"].includes(String(status || "").toLowerCase());
@@ -27,12 +30,23 @@ function canMarkCompleted(status) {
   return ["arrived", "in_progress"].includes(String(status || "").toLowerCase());
 }
 
+function canJoinSession(item) {
+  const status = String(item?.status || "").toLowerCase();
+  return item?.consultation_type === "telemedicine" && !["cancelled", "completed", "no_show"].includes(status);
+}
+
+function canMarkTechnicalFailure(item) {
+  const status = String(item?.status || "").toLowerCase();
+  return item?.consultation_type === "telemedicine" && ["confirmed", "arrived", "in_progress"].includes(status);
+}
+
 export default function DoctorDashboardPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [items, setItems] = useState([]);
   const [meta, setMeta] = useState({ total: 0, page: 1, size: 20, hasMore: false });
   const [isLoading, setIsLoading] = useState(true);
   const [busyId, setBusyId] = useState("");
+  const [technicalFailureTargetId, setTechnicalFailureTargetId] = useState("");
 
   const filters = useMemo(
     () => ({
@@ -114,6 +128,43 @@ export default function DoctorDashboardPage() {
     }
   };
 
+  const handleJoinSession = async (appointmentId) => {
+    setBusyId(appointmentId);
+    try {
+      const payload = await createTelemedicineJoinLink(appointmentId);
+      if (!payload?.join_url) {
+        throw new Error("Join URL missing.");
+      }
+
+      window.open(payload.join_url, "_blank", "noopener,noreferrer");
+      toast.success("Telemedicine session opened.");
+    } catch (error) {
+      toast.error(extractApiErrorMessage(error, "Unable to open telemedicine session."));
+    } finally {
+      setBusyId("");
+    }
+  };
+
+  const handleTechnicalFailure = async (reason) => {
+    if (!technicalFailureTargetId) {
+      return;
+    }
+
+    setBusyId(technicalFailureTargetId);
+    try {
+      await markAppointmentTechnicalFailure(technicalFailureTargetId, {
+        reason,
+      });
+      toast.success("Technical failure recorded.");
+      setTechnicalFailureTargetId("");
+      await loadAppointments();
+    } catch (error) {
+      toast.error(extractApiErrorMessage(error, "Unable to mark technical failure."));
+    } finally {
+      setBusyId("");
+    }
+  };
+
   return (
     <section className="space-y-6">
       <Card className="border border-sky-100 bg-gradient-to-r from-sky-50/80 to-white">
@@ -179,6 +230,7 @@ export default function DoctorDashboardPage() {
                     <th className="px-4 py-3">Patient</th>
                     <th className="px-4 py-3">Date</th>
                     <th className="px-4 py-3">Start</th>
+                    <th className="px-4 py-3">Mode</th>
                     <th className="px-4 py-3">Status</th>
                     <th className="px-4 py-3 text-right">Actions</th>
                   </tr>
@@ -189,6 +241,7 @@ export default function DoctorDashboardPage() {
                       <td className="px-4 py-3 font-medium text-slate-800">{item.patient_name || "-"}</td>
                       <td className="px-4 py-3 text-slate-600">{formatDisplayDate(item.date)}</td>
                       <td className="px-4 py-3 text-slate-600">{formatTimeLabel(item.start_time)}</td>
+                      <td className="px-4 py-3 text-slate-600">{item.consultation_type || "-"}</td>
                       <td className="px-4 py-3">
                         <span
                           className={[
@@ -201,6 +254,15 @@ export default function DoctorDashboardPage() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="inline-flex gap-2">
+                          <Button
+                            size="xs"
+                            variant="outline"
+                            disabled={!canJoinSession(item) || busyId === item.appointment_id}
+                            onClick={() => handleJoinSession(item.appointment_id)}
+                          >
+                            <Video className="size-3" />
+                            Join
+                          </Button>
                           <Button
                             size="xs"
                             variant="outline"
@@ -217,13 +279,22 @@ export default function DoctorDashboardPage() {
                             <CheckCircle2 className="size-3" />
                             Complete
                           </Button>
+                          <Button
+                            size="xs"
+                            variant="destructive"
+                            disabled={!canMarkTechnicalFailure(item) || busyId === item.appointment_id}
+                            onClick={() => setTechnicalFailureTargetId(item.appointment_id)}
+                          >
+                            <AlertTriangle className="size-3" />
+                            Tech Fail
+                          </Button>
                         </div>
                       </td>
                     </tr>
                   ))}
                   {items.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="px-4 py-8 text-center text-sm text-muted-foreground">
+                      <td colSpan={6} className="px-4 py-8 text-center text-sm text-muted-foreground">
                         No appointments available.
                       </td>
                     </tr>
@@ -254,6 +325,17 @@ export default function DoctorDashboardPage() {
           </div>
         </CardContent>
       </Card>
+
+      <CancelAppointmentModal
+        key={technicalFailureTargetId || "technical-failure-modal"}
+        open={Boolean(technicalFailureTargetId)}
+        title="Mark Technical Failure"
+        requireReason
+        confirmLabel="Mark failure"
+        isSubmitting={Boolean(busyId)}
+        onClose={() => setTechnicalFailureTargetId("")}
+        onConfirm={handleTechnicalFailure}
+      />
     </section>
   );
 }
