@@ -1,7 +1,9 @@
 import { CalendarClock, Mail, UserRound } from "lucide-react";
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import toast from "react-hot-toast";
 
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import {
@@ -13,27 +15,7 @@ import {
 } from "@/lib/appointment-utils";
 import { getAppointments } from "@/services/appointments";
 import { getCurrentUserProfile } from "@/services/auth";
-
-function getDummyAppointments() {
-  return [
-    {
-      appointment_id: "p-dummy-1",
-      doctor_name: "Dr. Nethmi Rodrigo",
-      date: new Date().toISOString().slice(0, 10),
-      start_time: "09:30:00",
-      consultation_type: "physical",
-      status: "confirmed",
-    },
-    {
-      appointment_id: "p-dummy-2",
-      doctor_name: "Dr. Kavishka Perera",
-      date: new Date().toISOString().slice(0, 10),
-      start_time: "13:30:00",
-      consultation_type: "telemedicine",
-      status: "completed",
-    },
-  ];
-}
+import { getPatientProfileByUserId } from "@/services/patients";
 
 export default function PatientOverviewPage() {
   const [profile, setProfile] = useState(null);
@@ -46,8 +28,11 @@ export default function PatientOverviewPage() {
     async function loadData() {
       setIsLoading(true);
       try {
+        const authUser = await getCurrentUserProfile();
+        const userId = authUser?.user_id || authUser?.id;
+
         const [profileData, appointmentData] = await Promise.all([
-          getCurrentUserProfile(),
+          userId ? getPatientProfileByUserId(userId) : Promise.resolve(null),
           getAppointments({ page: 1, size: 10 }),
         ]);
 
@@ -58,14 +43,15 @@ export default function PatientOverviewPage() {
         setProfile(profileData || null);
 
         const items = Array.isArray(appointmentData?.items) ? appointmentData.items : [];
-        setAppointments(items.length > 0 ? items : getDummyAppointments());
+        setAppointments(items);
       } catch (error) {
         if (ignore) {
           return;
         }
 
         toast.error(extractApiErrorMessage(error, "Unable to load profile data."));
-        setAppointments(getDummyAppointments());
+        setProfile(null);
+        setAppointments([]);
       } finally {
         if (!ignore) {
           setIsLoading(false);
@@ -96,14 +82,19 @@ export default function PatientOverviewPage() {
         <CardContent className="grid gap-3 md:grid-cols-2">
           <p className="inline-flex items-center gap-2 text-sm text-slate-700">
             <UserRound className="size-4" />
-            {profile?.full_name || profile?.name || "Unknown Patient"}
+            {profile?.full_name || "Unknown Patient"}
           </p>
           <p className="inline-flex items-center gap-2 text-sm text-slate-700">
             <Mail className="size-4" />
             {profile?.email || "No email"}
           </p>
-          <p className="text-sm text-slate-700">Patient ID: {profile?.id || profile?.user_id || "-"}</p>
-          <p className="text-sm text-slate-700">Role: {profile?.role || "patient"}</p>
+          <p className="text-sm text-slate-700">Phone: {profile?.phone || "Not provided"}</p>
+          <p className="text-sm text-slate-700">
+            Date of Birth: {profile?.dob ? formatDisplayDate(profile.dob) : "Not provided"}
+          </p>
+          <p className="text-sm text-slate-700">Gender: {profile?.gender || "Not provided"}</p>
+          <p className="text-sm text-slate-700">Emergency Contact: {profile?.emergency_contact || "Not provided"}</p>
+          <p className="text-sm text-slate-700 md:col-span-2">Address: {profile?.address || "Not provided"}</p>
         </CardContent>
       </Card>
 
@@ -145,6 +136,16 @@ export default function PatientOverviewPage() {
                     </td>
                   </tr>
                 ))}
+                {appointments.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-4 py-8 text-center text-sm text-muted-foreground">
+                      <p>No appointments yet.</p>
+                      <Button className="mt-3" size="sm" asChild>
+                        <Link to="/doctors">Book now</Link>
+                      </Button>
+                    </td>
+                  </tr>
+                ) : null}
               </tbody>
             </table>
           </div>

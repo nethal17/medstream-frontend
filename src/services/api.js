@@ -2,7 +2,7 @@ import axios from "axios";
 import { getRoleFromToken } from "@/lib/auth";
 
 const BASE_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:8080";
+  import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "http://localhost:8080";
 const ACCESS_TOKEN_STORAGE_KEY = "medstream_access_token";
 const REFRESH_TOKEN_STORAGE_KEY = "medstream_refresh_token";
 

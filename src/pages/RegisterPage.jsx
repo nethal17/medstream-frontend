@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
-import api from "@/services/api";
+import { registerUser } from "@/services/auth";
 
 const benefits = [
   { icon: CalendarClock, text: "Instant appointment booking" },
@@ -20,6 +20,7 @@ export default function RegisterPage() {
 
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -28,7 +29,7 @@ export default function RegisterPage() {
     event.preventDefault();
 
     if (!fullName.trim() || !email.trim() || !password || !confirmPassword) {
-      toast.error("All fields are required.");
+      toast.error("All fields are required except phone.");
       return;
     }
 
@@ -45,10 +46,11 @@ export default function RegisterPage() {
     setIsSubmitting(true);
 
     try {
-      await api.post("/auth/register", {
+      await registerUser({
         full_name: fullName.trim(),
         email: email.trim(),
         password,
+        phone: phone.trim() || undefined,
         role: "patient",
       });
 
@@ -147,6 +149,17 @@ export default function RegisterPage() {
                     placeholder="patient@example.com"
                     value={email}
                     onChange={(event) => setEmail(event.target.value)}
+                    className="h-11 rounded-xl border-teal-100 bg-teal-50/40"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-slate-700">Phone (optional)</label>
+                  <Input
+                    type="tel"
+                    placeholder="0771234567"
+                    value={phone}
+                    onChange={(event) => setPhone(event.target.value)}
                     className="h-11 rounded-xl border-teal-100 bg-teal-50/40"
                   />
                 </div>
