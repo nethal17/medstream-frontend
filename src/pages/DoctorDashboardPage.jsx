@@ -167,10 +167,10 @@ export default function DoctorDashboardPage() {
 
   return (
     <section className="space-y-6">
-      <Card className="border border-sky-100 bg-gradient-to-r from-sky-50/80 to-white">
+      <Card className="bg-[radial-gradient(circle_at_top_right,rgba(154,182,213,0.14),transparent_45%)]">
         <CardHeader>
           <CardTitle className="inline-flex items-center gap-2 text-3xl">
-            <ClipboardCheck className="size-7 text-sky-700" />
+            <ClipboardCheck className="size-7 text-primary" />
             Doctor Dashboard
           </CardTitle>
           <p className="text-sm text-slate-600">Manage consultation outcomes in real time.</p>
@@ -180,7 +180,7 @@ export default function DoctorDashboardPage() {
       <Card className="border border-slate-200 bg-white py-5 shadow-sm">
         <CardHeader className="pb-2">
           <CardTitle className="inline-flex items-center gap-2 text-xl">
-            <UserCheck className="size-5 text-sky-600" />
+            <UserCheck className="size-5 text-primary" />
             Doctor Appointments ({meta.total})
           </CardTitle>
         </CardHeader>

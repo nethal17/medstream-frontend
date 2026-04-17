@@ -1,47 +1,70 @@
-import { Bell, LogOut, UserCircle2 } from "lucide-react";
-import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
+import { Outlet, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 
-import { Button } from "@/components/ui/button";
+import PatientFooter from "@/components/patient-footer";
+import PatientNavbar from "@/components/patient-navbar";
 import { useAuth } from "@/contexts/useAuth";
 import { ROLES, getHomeRouteForRole, isClinicRole } from "@/lib/auth";
 
-function getNavItemsByRole(role) {
+function getNavItemsByRole(role, isAuthenticated) {
   if (role === ROLES.DOCTOR) {
-    return [{ label: "Doctor Dashboard", href: "/doctor/dashboard" }];
+    return [{ label: "Doctor Dashboard", to: "/doctor/dashboard" }];
   }
 
   if (isClinicRole(role)) {
-    return [{ label: "Clinic Admin", href: "/admin/clinic/dashboard" }];
+    return [{ label: "Clinic Admin", to: "/admin/clinic/dashboard" }];
   }
 
   if (role === ROLES.ADMIN) {
-    return [{ label: "Super Admin", href: "/admin/super/dashboard" }];
+    return [{ label: "Super Admin", to: "/admin/super/dashboard" }];
   }
 
-  return [
-    { label: "Find a Doctor", href: "/doctors" },
-    { label: "My Profile", href: "/patient/profile" },
+  const base = [
+    { label: "Find Doctors", to: "/doctors" },
+    { label: "Clinics", to: "/join-with-us" },
+    { label: "Join With Us", to: "/join-with-us" },
   ];
+
+  if (isAuthenticated) {
+    base.push({ label: "My Profile", to: "/patient/profile" });
+  }
+
+  return base;
 }
 
-function getPortalLabel(role) {
+function shouldShowGuestActions(role) {
+  return !role || role === ROLES.PATIENT;
+}
+
+function shouldShowPatientFooter(role) {
+  return !role || role === ROLES.PATIENT;
+}
+
+function getHomeRoute(role) {
+  if (!role) {
+    return "/";
+  }
+
+  return getHomeRouteForRole(role);
+}
+
+function getPortalSubtitle(role) {
   if (role === ROLES.DOCTOR) {
-    return "Doctor Portal";
+    return "Doctor portal";
   }
   if (isClinicRole(role)) {
-    return "Clinic Admin Portal";
+    return "Clinic admin portal";
   }
   if (role === ROLES.ADMIN) {
-    return "Super Admin Portal";
+    return "Super admin portal";
   }
-  return "Patient Portal";
+  return "Clinic & patient booking platform";
 }
 
 export default function PatientPortalLayout() {
   const navigate = useNavigate();
-  const { role, logout } = useAuth();
-  const navItems = getNavItemsByRole(role);
+  const { role, logout, isAuthenticated } = useAuth();
+  const navItems = getNavItemsByRole(role, isAuthenticated);
 
   const handleLogout = () => {
     logout();
@@ -50,49 +73,21 @@ export default function PatientPortalLayout() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-foreground">
-      <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/95 backdrop-blur-sm">
-        <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-4 sm:px-8">
-          <div className="flex items-center gap-6">
-            <Link to={getHomeRouteForRole(role)} className="font-semibold text-primary">
-              {getPortalLabel(role)}
-            </Link>
-            <nav className="hidden items-center gap-1 sm:flex">
-              {navItems.map((item) => (
-                <NavLink
-                  key={item.label}
-                  to={item.href}
-                  className={({ isActive }) =>
-                    [
-                      "rounded-md px-3 py-2 text-sm transition-colors",
-                      isActive ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground",
-                    ].join(" ")
-                  }
-                >
-                  {item.label}
-                </NavLink>
-              ))}
-            </nav>
-          </div>
+    <div className="min-h-screen bg-background text-foreground">
+      <PatientNavbar
+        links={navItems}
+        homeTo={getHomeRoute(role)}
+        subtitle={getPortalSubtitle(role)}
+        showSignIn={shouldShowGuestActions(role)}
+        showRegister={shouldShowGuestActions(role)}
+        onLogout={handleLogout}
+      />
 
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon-sm" aria-label="Notifications">
-              <Bell className="size-4" />
-            </Button>
-            <Button variant="ghost" size="icon-sm" aria-label="Profile">
-              <UserCircle2 className="size-4" />
-            </Button>
-            <Button variant="ghost" size="sm" className="hidden sm:inline-flex" onClick={handleLogout}>
-              <LogOut className="size-4" />
-              Logout
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      <main className="mx-auto w-full max-w-7xl px-4 py-7 sm:px-8 sm:py-10">
+      <main className="app-section">
         <Outlet />
       </main>
+
+      {shouldShowPatientFooter(role) ? <PatientFooter /> : null}
     </div>
   );
 }

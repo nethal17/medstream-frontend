@@ -1,4 +1,4 @@
-import api from "@/services/api";
+import api, { publicApi } from "@/services/api";
 import { unwrapData } from "@/lib/appointment-utils";
 
 function cleanParams(params = {}) {
@@ -8,7 +8,7 @@ function cleanParams(params = {}) {
 }
 
 export async function searchDoctors(params = {}) {
-  const response = await api.get("/appointments/doctors/search", {
+  const response = await publicApi.get("/appointments/doctors/search", {
     params: cleanParams(params),
   });
 

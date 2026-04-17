@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
+import { useAuth } from "@/contexts/useAuth";
 import {
   extractApiErrorMessage,
   formatConsultationType,
@@ -67,7 +68,7 @@ function DoctorCard({ doctor, onBook }) {
       <CardHeader className="pb-0">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <div className="flex size-14 items-center justify-center rounded-full bg-sky-50 text-sm font-semibold text-sky-700 ring-1 ring-sky-100">
+            <div className="flex size-14 items-center justify-center rounded-full bg-accent/60 text-sm font-semibold text-primary ring-1 ring-border">
               {initials || "DR"}
             </div>
             <div>
@@ -76,7 +77,7 @@ function DoctorCard({ doctor, onBook }) {
             </div>
           </div>
 
-          <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-700 ring-1 ring-sky-100">
+          <span className="inline-flex items-center gap-1 rounded-full bg-accent/60 px-2.5 py-1 text-xs font-medium text-primary ring-1 ring-border">
             <Star className="size-3 fill-current" />
             {rating}
           </span>
@@ -118,6 +119,7 @@ function canJoinTelemedicine(item) {
 export default function DoctorsPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { isAuthenticated } = useAuth();
 
   const [doctors, setDoctors] = useState([]);
   const [meta, setMeta] = useState({ total: 0, empty_state: false });
@@ -221,6 +223,14 @@ export default function DoctorsPage() {
   }, [filters]);
 
   useEffect(() => {
+    if (!isAuthenticated) {
+      setHistoryItems([]);
+      setHistoryMeta({ total: 0, page: 1, size: 5, has_more: false });
+      setHistoryError("");
+      setIsHistoryLoading(false);
+      return;
+    }
+
     let ignore = false;
 
     async function loadHistory() {
@@ -259,7 +269,7 @@ export default function DoctorsPage() {
     return () => {
       ignore = true;
     };
-  }, [historyFilters]);
+  }, [historyFilters, isAuthenticated]);
 
   const updateFilter = (key, value) => {
     const current = searchParams.get(key) || "";
@@ -339,10 +349,12 @@ export default function DoctorsPage() {
   };
 
   const refreshHistoryAndDoctors = async () => {
-    const [doctorPayload, historyPayload] = await Promise.all([
-      searchDoctors(filters),
-      getAppointments(historyFilters),
-    ]);
+    const requests = [searchDoctors(filters)];
+    if (isAuthenticated) {
+      requests.push(getAppointments(historyFilters));
+    }
+
+    const [doctorPayload, historyPayload] = await Promise.all(requests);
 
     setDoctors(doctorPayload?.results || []);
     setMeta({
@@ -350,13 +362,15 @@ export default function DoctorsPage() {
       empty_state: Boolean(doctorPayload?.empty_state),
     });
 
-    setHistoryItems(historyPayload?.items || []);
-    setHistoryMeta({
-      total: historyPayload?.total || 0,
-      page: historyPayload?.page || historyFilters.page,
-      size: historyPayload?.size || historyFilters.size,
-      has_more: Boolean(historyPayload?.has_more),
-    });
+    if (isAuthenticated) {
+      setHistoryItems(historyPayload?.items || []);
+      setHistoryMeta({
+        total: historyPayload?.total || 0,
+        page: historyPayload?.page || historyFilters.page,
+        size: historyPayload?.size || historyFilters.size,
+        has_more: Boolean(historyPayload?.has_more),
+      });
+    }
   };
 
   const handleReschedule = async (payload) => {
@@ -414,7 +428,7 @@ export default function DoctorsPage() {
 
   return (
     <section className="space-y-8">
-      <Card className="gap-5 border border-sky-100 bg-gradient-to-b from-sky-50/70 to-white py-7 shadow-sm">
+      <Card className="gap-5 bg-[radial-gradient(circle_at_top_right,rgba(134,208,193,0.14),transparent_45%)] py-7">
         <CardHeader className="space-y-2">
           <CardTitle className="text-4xl tracking-tight text-slate-900">Find Your Doctor</CardTitle>
           <p className="text-slate-600">
@@ -438,7 +452,7 @@ export default function DoctorsPage() {
               onChange={(event) => updateFilter("date", event.target.value)}
               className="h-11 rounded-lg border-slate-300 bg-white"
             />
-            <Button className="h-11 rounded-lg bg-sky-600 px-6 text-white hover:bg-sky-700" onClick={handleSearchClick}>
+            <Button className="h-11 rounded-lg px-6" onClick={handleSearchClick}>
               Search Now
             </Button>
           </div>
@@ -486,7 +500,7 @@ export default function DoctorsPage() {
                         onClick={() => setSelectedConsultationType(option.value)}
                         className={[
                           "rounded px-3 py-1.5 text-xs font-medium transition",
-                          active ? "bg-sky-600 text-white" : "text-slate-600",
+                          active ? "bg-primary text-primary-foreground" : "text-slate-600",
                         ].join(" ")}
                       >
                         {option.label}
@@ -510,7 +524,7 @@ export default function DoctorsPage() {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="inline-flex items-center gap-2 text-xl font-semibold">
-            <Stethoscope className="size-5 text-sky-600" />
+            <Stethoscope className="size-5 text-primary" />
             Available Doctors
           </h2>
           <p className="text-sm text-muted-foreground">{meta.total} Results</p>
@@ -569,10 +583,11 @@ export default function DoctorsPage() {
         ) : null}
       </div>
 
+      {isAuthenticated ? (
       <Card className="border border-slate-200 bg-white py-5 shadow-sm">
         <CardHeader className="pb-2">
           <CardTitle className="inline-flex items-center gap-2 text-xl">
-            <CalendarClock className="size-5 text-sky-600" />
+            <CalendarClock className="size-5 text-primary" />
             Appointment History
           </CardTitle>
         </CardHeader>
@@ -721,6 +736,25 @@ export default function DoctorsPage() {
           </div>
         </CardContent>
       </Card>
+      ) : (
+      <Card className="border border-slate-200 bg-white py-5 shadow-sm">
+        <CardHeader className="pb-2">
+          <CardTitle className="inline-flex items-center gap-2 text-xl">
+            <CalendarClock className="size-5 text-primary" />
+            Sign in for booking history
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-slate-600">
+            You can browse all doctors without an account. Sign in to view your appointment history,
+            join telemedicine sessions, and manage bookings.
+          </p>
+          <Button className="mt-4" onClick={() => navigate("/login")}>
+            Sign in
+          </Button>
+        </CardContent>
+      </Card>
+      )}
 
       <RescheduleAppointmentModal
         key={rescheduleTarget?.appointment_id || "reschedule-modal"}

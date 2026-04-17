@@ -22,8 +22,8 @@ export default function CancelAppointmentModal({
   const canSubmit = !requireReason || reason.trim().length > 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
-      <Card className="w-full max-w-md border border-slate-200 bg-white">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-800/25 px-4 backdrop-blur-[2px]">
+      <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>{title}</CardTitle>
           <p className="text-sm text-muted-foreground">
@@ -37,7 +37,7 @@ export default function CancelAppointmentModal({
               value={reason}
               onChange={(event) => setReason(event.target.value)}
               rows={3}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+              className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground outline-none focus-visible:border-primary/40 focus-visible:ring-3 focus-visible:ring-primary/15"
               placeholder="Enter cancellation reason"
             />
           </div>
