@@ -42,3 +42,13 @@ export async function mockConfirmPayment(paymentId, action = "success") {
   });
   return data;
 }
+
+/**
+ * Manually verify a Stripe/Mock session for immediate confirmation.
+ * @param {string} sessionId - Checkout Session ID
+ * @returns {{ status, payment_id }}
+ */
+export async function verifyPaymentSession(sessionId) {
+  const { data } = await api.post(`/payments/api/payments/verify-session/${sessionId}`);
+  return data;
+}

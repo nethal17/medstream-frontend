@@ -46,13 +46,18 @@ export default function BookingConfirmationPage() {
   const clinicName = appointment.clinic_name || clinic?.clinic_name || "-";
 
   const isPendingPayment =
-    appointment.payment_status === "pending" && appointment.payment_id;
+    (appointment.payment_status === "pending" || appointment.paymentStatus === "pending") &&
+    (appointment.payment_id || appointment.paymentId || (appointment.consultation_fee > 0));
 
   const handlePayNow = async () => {
-    if (!appointment.payment_id) return;
+    const pid = appointment.payment_id || appointment.paymentId;
+    if (!pid) {
+      toast.error("Payment ID missing. Please contact support.");
+      return;
+    }
     setIsSubmitting(true);
     try {
-      const result = await initiatePayment(appointment.payment_id);
+      const result = await initiatePayment(pid);
       if (result?.gateway_url) {
         window.location.href = result.gateway_url;
       } else {
