@@ -1,4 +1,4 @@
-import { BarChart3, Settings2, Shield } from "lucide-react";
+import { BarChart3, RefreshCw, Settings2, Shield, Video } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
@@ -7,10 +7,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { extractApiErrorMessage } from "@/lib/appointment-utils";
 import {
+  getAdminTelemedicineLiveStatuses,
   getActivePolicy,
   getAdminStatistics,
   updateActivePolicy,
 } from "@/services/appointments";
+import {
+  getGoogleOAuthLoginUrl,
+  getGoogleOAuthStatus,
+} from "@/services/telemedicine";
 
 const defaultPolicy = {
   cancellation_window_hours: 12,
@@ -23,15 +28,39 @@ const defaultPolicy = {
 
 export default function SuperAdminDashboardPage() {
   const [stats, setStats] = useState(null);
+  const [googleStatus, setGoogleStatus] = useState(null);
+  const [liveStatuses, setLiveStatuses] = useState([]);
+  const [livePage, setLivePage] = useState(1);
+  const [liveMeta, setLiveMeta] = useState({ page: 1, size: 20, has_more: false });
+  const [dashboardFilters, setDashboardFilters] = useState({
+    date_from: "",
+    date_to: "",
+    clinic_id: "",
+    doctor_id: "",
+    outcome: "",
+  });
   const [policy, setPolicy] = useState(defaultPolicy);
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingPolicy, setIsSavingPolicy] = useState(false);
+  const [isRefreshingLive, setIsRefreshingLive] = useState(false);
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [statsPayload, policyPayload] = await Promise.all([getAdminStatistics(), getActivePolicy()]);
+      const [statsPayload, policyPayload, oauthPayload, livePayload] = await Promise.all([
+        getAdminStatistics(dashboardFilters),
+        getActivePolicy(),
+        getGoogleOAuthStatus(),
+        getAdminTelemedicineLiveStatuses({ page: livePage, size: 20, ...dashboardFilters }),
+      ]);
       setStats(statsPayload || null);
+      setGoogleStatus(oauthPayload || null);
+      setLiveStatuses(livePayload?.items || livePayload?.results || []);
+      setLiveMeta({
+        page: livePayload?.page || livePage,
+        size: livePayload?.size || 20,
+        has_more: Boolean(livePayload?.has_more),
+      });
       setPolicy({
         cancellation_window_hours: policyPayload?.cancellation_window_hours ?? 12,
         reschedule_window_hours: policyPayload?.reschedule_window_hours ?? 24,
@@ -45,7 +74,7 @@ export default function SuperAdminDashboardPage() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [dashboardFilters, livePage]);
 
   useEffect(() => {
     loadData();
@@ -68,6 +97,38 @@ export default function SuperAdminDashboardPage() {
       toast.error(extractApiErrorMessage(error, "Unable to update policy."));
     } finally {
       setIsSavingPolicy(false);
+    }
+  };
+
+  const updateFilter = (key, value) => {
+    setLivePage(1);
+    setDashboardFilters((prev) => ({
+      ...prev,
+      [key]: value,
+    }));
+  };
+
+  const refreshLiveStatuses = async () => {
+    setIsRefreshingLive(true);
+    try {
+      const [statsPayload, livePayload, oauthPayload] = await Promise.all([
+        getAdminStatistics(dashboardFilters),
+        getAdminTelemedicineLiveStatuses({ page: livePage, size: 20, ...dashboardFilters }),
+        getGoogleOAuthStatus(),
+      ]);
+
+      setStats(statsPayload || null);
+      setGoogleStatus(oauthPayload || null);
+      setLiveStatuses(livePayload?.items || livePayload?.results || []);
+      setLiveMeta({
+        page: livePayload?.page || livePage,
+        size: livePayload?.size || 20,
+        has_more: Boolean(livePayload?.has_more),
+      });
+    } catch (error) {
+      toast.error(extractApiErrorMessage(error, "Unable to refresh live dashboard."));
+    } finally {
+      setIsRefreshingLive(false);
     }
   };
 
@@ -114,7 +175,141 @@ export default function SuperAdminDashboardPage() {
                 <p className="text-3xl font-semibold text-slate-900">{stats?.total_completed ?? 0}</p>
               </CardContent>
             </Card>
+            <Card className="border border-slate-200 bg-white">
+              <CardContent className="py-5">
+                <p className="text-xs uppercase tracking-wide text-slate-500">Failed Sessions</p>
+                <p className="text-3xl font-semibold text-slate-900">{stats?.total_failed_sessions ?? 0}</p>
+              </CardContent>
+            </Card>
+            <Card className="border border-slate-200 bg-white">
+              <CardContent className="py-5">
+                <p className="text-xs uppercase tracking-wide text-slate-500">Avg Duration</p>
+                <p className="text-3xl font-semibold text-slate-900">{stats?.average_duration_minutes ?? "-"}</p>
+              </CardContent>
+            </Card>
           </div>
+
+          <Card className="border border-slate-200 bg-white py-5 shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="inline-flex items-center gap-2 text-xl">
+                <Video className="size-5 text-sky-600" />
+                Google Meet Integration
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <p className="text-sm text-slate-700">
+                  Status:{" "}
+                  <span className={googleStatus?.connected ? "font-semibold text-emerald-700" : "font-semibold text-rose-700"}>
+                    {googleStatus?.connected ? "Connected" : "Disconnected"}
+                  </span>
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {googleStatus?.connected
+                    ? `Account: ${googleStatus?.account_email || "N/A"}`
+                    : "Connect your Google account to provision Google Meet links."}
+                </p>
+              </div>
+
+              <div className="inline-flex items-center gap-2">
+                <Button variant="outline" onClick={refreshLiveStatuses} disabled={isRefreshingLive}>
+                  <RefreshCw className="size-4" />
+                  Refresh
+                </Button>
+                {!googleStatus?.connected ? (
+                  <Button asChild>
+                    <a href={getGoogleOAuthLoginUrl()}>Connect Google</a>
+                  </Button>
+                ) : null}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border border-slate-200 bg-white py-5 shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="inline-flex items-center gap-2 text-xl">Live Telemedicine Statuses</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-3 md:grid-cols-5">
+                <input
+                  type="date"
+                  value={dashboardFilters.date_from}
+                  onChange={(event) => updateFilter("date_from", event.target.value)}
+                  className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                />
+                <input
+                  type="date"
+                  value={dashboardFilters.date_to}
+                  onChange={(event) => updateFilter("date_to", event.target.value)}
+                  className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                />
+                <input
+                  value={dashboardFilters.clinic_id}
+                  onChange={(event) => updateFilter("clinic_id", event.target.value)}
+                  className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                  placeholder="Clinic ID"
+                />
+                <input
+                  value={dashboardFilters.doctor_id}
+                  onChange={(event) => updateFilter("doctor_id", event.target.value)}
+                  className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                  placeholder="Doctor ID"
+                />
+                <select
+                  value={dashboardFilters.outcome}
+                  onChange={(event) => updateFilter("outcome", event.target.value)}
+                  className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="">All outcomes</option>
+                  <option value="completed">Completed</option>
+                  <option value="no_show">No-show</option>
+                  <option value="technical_failed">Technical failure</option>
+                </select>
+              </div>
+
+              <div className="overflow-x-auto rounded-lg border border-slate-200">
+                <table className="w-full min-w-[920px] text-left text-sm">
+                  <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                    <tr>
+                      <th className="px-4 py-3">Appointment</th>
+                      <th className="px-4 py-3">Clinic</th>
+                      <th className="px-4 py-3">Doctor</th>
+                      <th className="px-4 py-3">Outcome</th>
+                      <th className="px-4 py-3">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {liveStatuses.map((item, index) => (
+                      <tr key={item.appointment_id || item.session_id || `live-${index}`} className="border-t">
+                        <td className="px-4 py-3 text-slate-700">{item.appointment_id || "-"}</td>
+                        <td className="px-4 py-3 text-slate-700">{item.clinic_id || item.clinic_name || "-"}</td>
+                        <td className="px-4 py-3 text-slate-700">{item.doctor_id || item.doctor_name || "-"}</td>
+                        <td className="px-4 py-3 text-slate-700">{item.outcome || "-"}</td>
+                        <td className="px-4 py-3 text-slate-700">{item.status || item.telemedicine_status || "-"}</td>
+                      </tr>
+                    ))}
+                    {liveStatuses.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="px-4 py-8 text-center text-sm text-muted-foreground">
+                          No live telemedicine records for selected filters.
+                        </td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="flex items-center justify-end gap-2">
+                <Button variant="outline" size="sm" disabled={liveMeta.page <= 1} onClick={() => setLivePage((prev) => prev - 1)}>
+                  Previous
+                </Button>
+                <span className="text-sm text-muted-foreground">Page {liveMeta.page}</span>
+                <Button variant="outline" size="sm" disabled={!liveMeta.has_more} onClick={() => setLivePage((prev) => prev + 1)}>
+                  Next
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
 
           <Card className="border border-slate-200 bg-white py-5 shadow-sm">
             <CardHeader className="pb-2">
