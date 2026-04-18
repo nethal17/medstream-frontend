@@ -53,6 +53,11 @@ export default function SuperAdminClinicsPage() {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
+  const currentClinic = useMemo(
+    () => clinics.find((item) => item.clinic_id === editingClinicId) || null,
+    [clinics, editingClinicId]
+  );
+
   const resetForm = () => {
     setEditingClinicId(null);
     setForm(emptyForm);
@@ -99,30 +104,40 @@ export default function SuperAdminClinicsPage() {
 
     try {
       if (editingClinicId) {
-        let updated;
+        const updatedPayload = {
+          clinic_name: form.clinic_name.trim(),
+          registration_no: form.registration_no.trim(),
+          address: form.address.trim(),
+          phone: form.phone.trim(),
+          email: form.email.trim(),
+        };
+        const hasNonStatusChanges =
+          updatedPayload.clinic_name !== currentClinic?.clinic_name ||
+          updatedPayload.registration_no !== currentClinic?.registration_no ||
+          updatedPayload.address !== currentClinic?.address ||
+          updatedPayload.phone !== currentClinic?.phone ||
+          updatedPayload.email !== currentClinic?.email;
+        const statusChanged = currentClinic?.status !== form.status;
 
-        try {
-          updated = await updateClinic(editingClinicId, {
-            clinic_name: form.clinic_name.trim(),
-            registration_no: form.registration_no.trim(),
-            address: form.address.trim(),
-            phone: form.phone.trim(),
-            email: form.email.trim(),
+        let updatedClinic = currentClinic;
+
+        if (hasNonStatusChanges) {
+          updatedClinic = await updateClinic(editingClinicId, updatedPayload);
+        }
+
+        if (statusChanged) {
+          updatedClinic = await updateClinicStatus(editingClinicId, {
             status: form.status,
+            reason: "Updated from Super Admin UI",
           });
-        } catch (error) {
-          if (error?.response?.status === 404 || error?.response?.status === 405) {
-            updated = await updateClinicStatus(editingClinicId, {
-              status: form.status,
-              reason: "Updated from Super Admin UI",
-            });
-          } else {
-            throw error;
-          }
+        }
+
+        if (!updatedClinic) {
+          throw new Error("Unable to update clinic.");
         }
 
         setClinics((prev) =>
-          prev.map((item) => (item.clinic_id === editingClinicId ? { ...item, ...updated } : item))
+          prev.map((item) => (item.clinic_id === editingClinicId ? { ...item, ...updatedClinic } : item))
         );
         toast.success("Clinic updated.");
       } else {
@@ -213,7 +228,6 @@ export default function SuperAdminClinicsPage() {
             <table className="w-full min-w-[860px] text-left text-sm">
               <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                 <tr>
-                  <th className="px-4 py-3">Clinic ID</th>
                   <th className="px-4 py-3">Name</th>
                   <th className="px-4 py-3">Registration</th>
                   <th className="px-4 py-3">Address</th>
@@ -239,7 +253,6 @@ export default function SuperAdminClinicsPage() {
                 ) : (
                   sortedClinics.map((clinic) => (
                     <tr key={clinic.clinic_id} className="border-t">
-                      <td className="px-4 py-3 text-slate-700">{clinic.clinic_id}</td>
                       <td className="px-4 py-3 text-slate-700">{clinic.clinic_name}</td>
                       <td className="px-4 py-3 text-slate-700">{clinic.registration_no}</td>
                       <td className="px-4 py-3 text-slate-700">{clinic.address}</td>

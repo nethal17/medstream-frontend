@@ -5,13 +5,9 @@ const navItems = [
   { key: "doctors", label: "Doctors", icon: Stethoscope },
   { key: "clinics", label: "Clinics", icon: Building2 },
   {
-    key: "appointments",
+    key: "appointments-normal",
     label: "Appointments",
     icon: CalendarDays,
-    children: [
-      { key: "appointments-normal", label: "Normal Appointments" },
-      { key: "appointments-telemedicine", label: "Telemedicine Appointments" },
-    ],
   },
   { key: "configurations", label: "Configurations", icon: Settings2 },
 ];
