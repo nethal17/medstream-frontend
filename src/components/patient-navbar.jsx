@@ -7,6 +7,7 @@ import { useAuth } from "@/contexts/useAuth";
 import { useRealtimeNotifications } from "@/hooks/useRealtimeNotifications";
 import { ROLES, getHomeRouteForRole } from "@/lib/auth";
 import { getCurrentUserProfile } from "@/services/auth";
+import { getDoctorMe } from "@/services/doctors";
 
 function itemClass(isActive) {
   return [
@@ -53,19 +54,30 @@ export default function PatientNavbar({
       }
 
       try {
-        const profile = await getCurrentUserProfile();
+        let resolvedName = "";
+        let profile = null;
+        if (role === ROLES.DOCTOR) {
+          // Try to get doctor profile for doctor users
+          profile = await getDoctorMe();
+          resolvedName =
+            profile?.full_name ||
+            profile?.fullName ||
+            profile?.name ||
+            [profile?.first_name, profile?.last_name].filter(Boolean).join(" ") ||
+            "";
+        } else {
+          profile = await getCurrentUserProfile();
+          resolvedName =
+            profile?.full_name ||
+            profile?.fullName ||
+            profile?.name ||
+            [profile?.first_name, profile?.last_name].filter(Boolean).join(" ") ||
+            "";
+        }
         if (ignore) {
           return;
         }
-
-        const resolvedName =
-          profile?.full_name ||
-          profile?.fullName ||
-          profile?.name ||
-          [profile?.first_name, profile?.last_name].filter(Boolean).join(" ") ||
-          "";
-
-        setAuthUserId(String(profile?.id || ""));
+        setAuthUserId(String(profile?.id || profile?.user_id || ""));
         setDisplayName(resolvedName);
       } catch {
         if (!ignore) {
@@ -80,7 +92,7 @@ export default function PatientNavbar({
     return () => {
       ignore = true;
     };
-  }, [isAuthenticated]);
+  }, [isAuthenticated, role]);
 
   const handleLogout = () => {
     setMenuOpen(false);

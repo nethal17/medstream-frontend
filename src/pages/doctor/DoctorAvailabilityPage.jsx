@@ -1,222 +1,387 @@
-import { CalendarClock, Plus, Save, Trash2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { CalendarClock, Pencil, Plus, Save, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-
-const clinics = [
-  { id: "clinic-colombo", name: "MedStream Colombo Care" },
-  { id: "clinic-kandy", name: "MedStream Kandy Center" },
-  { id: "clinic-galle", name: "MedStream Galle Plus" },
-];
+import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
+import { extractApiErrorMessage, formatConsultationType, formatTimeLabel } from "@/lib/appointment-utils";
+import {
+  createMyDoctorAvailability,
+  deleteMyDoctorAvailability,
+  getDoctorMe,
+  getMyDoctorAvailability,
+  updateMyDoctorAvailability,
+} from "@/services/doctors";
 
 const weekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
-function buildDefaultDay(day) {
+const defaultForm = {
+  clinic_id: "",
+  day_of_week: "Monday",
+  date: "",
+  start_time: "09:00",
+  end_time: "13:00",
+  slot_duration: "30",
+  consultation_type: "physical",
+};
+
+function toFormState(item) {
   return {
-    day,
-    active: ["Saturday", "Sunday"].includes(day) ? false : true,
-    slots: [
-      {
-        id: `${day}-slot-1`,
-        start: "09:00",
-        end: "12:00",
-        mode: "in-person",
-      },
-    ],
+    clinic_id: item?.clinic_id || "",
+    day_of_week: item?.day_of_week ? `${String(item.day_of_week).charAt(0).toUpperCase()}${String(item.day_of_week).slice(1)}` : "Monday",
+    date: item?.date || "",
+    start_time: item?.start_time?.slice(0, 5) || "09:00",
+    end_time: item?.end_time?.slice(0, 5) || "13:00",
+    slot_duration: String(item?.slot_duration || 30),
+    consultation_type: item?.consultation_type || "physical",
   };
 }
 
-function buildInitialState() {
-  return Object.fromEntries(
-    clinics.map((clinic) => [clinic.id, weekdays.map((day) => buildDefaultDay(day))])
-  );
+function normalizeDayForApi(value) {
+  return value ? String(value).trim().toLowerCase() : null;
+}
+
+function buildAvailabilityPayload(form) {
+  const hasDate = Boolean(form.date);
+
+  return {
+    clinic_id: form.clinic_id,
+    ...(hasDate ? { date: form.date } : { day_of_week: normalizeDayForApi(form.day_of_week) }),
+    start_time: form.start_time,
+    end_time: form.end_time,
+    slot_duration: Number(form.slot_duration) || 30,
+    consultation_type: form.consultation_type || null,
+  };
 }
 
 export default function DoctorAvailabilityPage() {
-  const [selectedClinicId, setSelectedClinicId] = useState(clinics[0].id);
-  const [availabilityByClinic, setAvailabilityByClinic] = useState(() => buildInitialState());
+  const [clinics, setClinics] = useState([]);
+  const [availability, setAvailability] = useState([]);
+  const [selectedClinicId, setSelectedClinicId] = useState("");
+  const [form, setForm] = useState(defaultForm);
+  const [editingId, setEditingId] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState("");
 
-  const selectedClinic = useMemo(
-    () => clinics.find((clinic) => clinic.id === selectedClinicId) || clinics[0],
-    [selectedClinicId]
-  );
+  useEffect(() => {
+    let ignore = false;
 
-  const days = availabilityByClinic[selectedClinic.id] || [];
+    async function loadAvailabilityData() {
+      setIsLoading(true);
+      setError("");
 
-  const updateDays = (updater) => {
-    setAvailabilityByClinic((prev) => ({
-      ...prev,
-      [selectedClinic.id]: updater(prev[selectedClinic.id] || []),
-    }));
-  };
+      try {
+        const [profilePayload, availabilityPayload] = await Promise.all([
+          getDoctorMe(),
+          getMyDoctorAvailability(),
+        ]);
 
-  const toggleDay = (targetDay) => {
-    updateDays((currentDays) =>
-      currentDays.map((dayItem) =>
-        dayItem.day === targetDay ? { ...dayItem, active: !dayItem.active } : dayItem
-      )
-    );
-  };
-
-  const addSlot = (targetDay) => {
-    updateDays((currentDays) =>
-      currentDays.map((dayItem) => {
-        if (dayItem.day !== targetDay) {
-          return dayItem;
+        if (ignore) {
+          return;
         }
 
-        const nextIndex = dayItem.slots.length + 1;
-        return {
-          ...dayItem,
-          slots: [
-            ...dayItem.slots,
-            {
-              id: `${targetDay}-slot-${nextIndex}-${Date.now()}`,
-              start: "13:00",
-              end: "16:00",
-              mode: "telemedicine",
-            },
-          ],
-        };
-      })
-    );
-  };
+        const nextClinics = Array.isArray(profilePayload?.clinics)
+          ? profilePayload.clinics.map((item) => item?.clinic).filter(Boolean)
+          : [];
+        const nextAvailability = Array.isArray(availabilityPayload?.results) ? availabilityPayload.results : [];
+        const fallbackClinicId = nextClinics[0]?.clinic_id || "";
 
-  const removeSlot = (targetDay, slotId) => {
-    updateDays((currentDays) =>
-      currentDays.map((dayItem) => {
-        if (dayItem.day !== targetDay) {
-          return dayItem;
+        setClinics(nextClinics);
+        setAvailability(nextAvailability);
+        setSelectedClinicId((prev) => prev || fallbackClinicId);
+        setForm((prev) => ({
+          ...prev,
+          clinic_id: prev.clinic_id || fallbackClinicId,
+        }));
+      } catch (requestError) {
+        if (ignore) {
+          return;
         }
 
-        return {
-          ...dayItem,
-          slots: dayItem.slots.filter((slot) => slot.id !== slotId),
-        };
-      })
-    );
-  };
-
-  const updateSlot = (targetDay, slotId, key, value) => {
-    updateDays((currentDays) =>
-      currentDays.map((dayItem) => {
-        if (dayItem.day !== targetDay) {
-          return dayItem;
+        setClinics([]);
+        setAvailability([]);
+        setError(extractApiErrorMessage(requestError, "Unable to load availability."));
+      } finally {
+        if (!ignore) {
+          setIsLoading(false);
         }
+      }
+    }
 
-        return {
-          ...dayItem,
-          slots: dayItem.slots.map((slot) => (slot.id === slotId ? { ...slot, [key]: value } : slot)),
-        };
-      })
+    loadAvailabilityData();
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  const filteredAvailability = useMemo(() => {
+    if (!selectedClinicId) {
+      return availability;
+    }
+
+    return availability.filter((item) => item?.clinic_id === selectedClinicId);
+  }, [availability, selectedClinicId]);
+
+  const updateField = (key, value) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const resetForm = () => {
+    setEditingId("");
+    setForm({
+      ...defaultForm,
+      clinic_id: selectedClinicId || clinics[0]?.clinic_id || "",
+    });
+  };
+
+  const refreshAvailability = async () => {
+    const payload = await getMyDoctorAvailability(
+      selectedClinicId
+        ? {
+            clinic_id: selectedClinicId,
+          }
+        : {}
     );
+    setAvailability(Array.isArray(payload?.results) ? payload.results : []);
   };
 
-  const saveAvailability = () => {
-    toast.success(`Dummy save: availability updated for ${selectedClinic.name}.`);
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+
+    if (!form.clinic_id) {
+      toast.error("Please select a clinic.");
+      return;
+    }
+
+    setIsSaving(true);
+
+    try {
+      const payload = buildAvailabilityPayload(form);
+
+      if (editingId) {
+        await updateMyDoctorAvailability(editingId, payload);
+        toast.success("Availability updated.");
+      } else {
+        await createMyDoctorAvailability(payload);
+        toast.success("Availability added.");
+      }
+
+      await refreshAvailability();
+      resetForm();
+    } catch (requestError) {
+      toast.error(extractApiErrorMessage(requestError, "Unable to save availability."));
+    } finally {
+      setIsSaving(false);
+    }
   };
+
+  const handleEdit = (item) => {
+    setEditingId(item?.availability_id || "");
+    setSelectedClinicId(item?.clinic_id || "");
+    setForm(toFormState(item));
+  };
+
+  const handleDelete = async (availabilityId) => {
+    if (!availabilityId) {
+      return;
+    }
+
+    try {
+      await deleteMyDoctorAvailability(availabilityId);
+      toast.success("Availability removed.");
+      await refreshAvailability();
+
+      if (editingId === availabilityId) {
+        resetForm();
+      }
+    } catch (requestError) {
+      toast.error(extractApiErrorMessage(requestError, "Unable to delete availability."));
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center rounded-xl border border-slate-200 bg-white p-10">
+        <Spinner className="size-8 text-primary" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card className="border border-rose-200 bg-rose-50 shadow-sm">
+        <CardContent className="p-6 text-sm text-rose-700">{error}</CardContent>
+      </Card>
+    );
+  }
 
   return (
-    <Card className="border border-slate-200 bg-white shadow-sm">
-      <CardHeader>
-        <CardTitle className="inline-flex items-center gap-2 text-xl">
-          <CalendarClock className="size-5 text-primary" />
-          Availability Management
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
-          <label className="text-sm font-medium text-slate-700">Select clinic to manage availability</label>
-          <select
-            value={selectedClinic.id}
-            onChange={(event) => setSelectedClinicId(event.target.value)}
-            className="mt-2 h-10 w-full rounded-md border border-input bg-background px-3 text-sm md:w-[360px]"
-          >
-            {clinics.map((clinic) => (
-              <option key={clinic.id} value={clinic.id}>
-                {clinic.name}
-              </option>
-            ))}
-          </select>
-          <p className="mt-2 text-xs text-slate-500">
-            One doctor can work across multiple clinics. Availability is configured separately per clinic.
-          </p>
-        </div>
+    <div className="space-y-5">
+      <Card className="border border-slate-200 bg-white shadow-sm">
+        <CardHeader>
+          <CardTitle className="inline-flex items-center gap-2 text-xl">
+            <CalendarClock className="size-5 text-primary" />
+            Availability Management
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-4 rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700">Clinic</label>
+                <select
+                  value={form.clinic_id}
+                  onChange={(event) => updateField("clinic_id", event.target.value)}
+                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="">Select clinic</option>
+                  {clinics.map((clinic) => (
+                    <option key={clinic.clinic_id} value={clinic.clinic_id}>
+                      {clinic.clinic_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-        {days.map((dayItem) => (
-          <div key={dayItem.day} className="rounded-xl border border-slate-200 bg-white p-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold text-slate-800">{dayItem.day}</p>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700">Day of week</label>
+                <select
+                  value={form.day_of_week}
+                  onChange={(event) => updateField("day_of_week", event.target.value)}
+                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                  disabled={Boolean(form.date)}
+                >
+                  {weekdays.map((day) => (
+                    <option key={day} value={day}>
+                      {day}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700">Specific date</label>
+                <Input type="date" value={form.date} onChange={(event) => updateField("date", event.target.value)} />
                 <p className="text-xs text-slate-500">
-                  {dayItem.active ? "Available" : "Not available"}
+                  Leave empty for a weekly recurring schedule, or choose a date for one-off availability.
                 </p>
               </div>
-              <div className="inline-flex items-center gap-2">
-                <Button type="button" size="xs" variant="outline" onClick={() => toggleDay(dayItem.day)}>
-                  {dayItem.active ? "Mark unavailable" : "Mark available"}
-                </Button>
-                <Button type="button" size="xs" variant="outline" onClick={() => addSlot(dayItem.day)}>
-                  <Plus className="size-3" />
-                  Add slot
-                </Button>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700">Consultation type</label>
+                <select
+                  value={form.consultation_type}
+                  onChange={(event) => updateField("consultation_type", event.target.value)}
+                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="physical">In-person</option>
+                  <option value="telemedicine">Telemedicine</option>
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700">Start time</label>
+                <Input type="time" value={form.start_time} onChange={(event) => updateField("start_time", event.target.value)} />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700">End time</label>
+                <Input type="time" value={form.end_time} onChange={(event) => updateField("end_time", event.target.value)} />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700">Slot duration</label>
+                <Input
+                  type="number"
+                  min="5"
+                  step="5"
+                  value={form.slot_duration}
+                  onChange={(event) => updateField("slot_duration", event.target.value)}
+                />
               </div>
             </div>
 
-            {dayItem.active ? (
-              <div className="mt-3 space-y-2">
-                {dayItem.slots.map((slot) => (
-                  <div
-                    key={slot.id}
-                    className="grid gap-2 rounded-md border border-slate-200 bg-slate-50 p-3 md:grid-cols-[1fr_1fr_1fr_auto]"
-                  >
-                    <input
-                      type="time"
-                      value={slot.start}
-                      onChange={(event) => updateSlot(dayItem.day, slot.id, "start", event.target.value)}
-                      className="h-9 rounded-md border border-input bg-background px-2 text-sm"
-                    />
-                    <input
-                      type="time"
-                      value={slot.end}
-                      onChange={(event) => updateSlot(dayItem.day, slot.id, "end", event.target.value)}
-                      className="h-9 rounded-md border border-input bg-background px-2 text-sm"
-                    />
-                    <select
-                      value={slot.mode}
-                      onChange={(event) => updateSlot(dayItem.day, slot.id, "mode", event.target.value)}
-                      className="h-9 rounded-md border border-input bg-background px-2 text-sm"
-                    >
-                      <option value="in-person">In-person</option>
-                      <option value="telemedicine">Telemedicine</option>
-                      <option value="both">Both</option>
-                    </select>
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="destructive"
-                      onClick={() => removeSlot(dayItem.day, slot.id)}
-                    >
-                      <Trash2 className="size-3" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="mt-3 text-sm text-slate-500">No slots for this day because it is marked unavailable.</p>
-            )}
-          </div>
-        ))}
+            <div className="flex flex-wrap justify-end gap-2">
+              {editingId ? (
+                <Button type="button" variant="outline" onClick={resetForm}>
+                  Cancel Edit
+                </Button>
+              ) : null}
+              <Button type="submit" disabled={isSaving}>
+                {editingId ? <Save className="size-4" /> : <Plus className="size-4" />}
+                {isSaving ? "Saving..." : editingId ? "Update Availability" : "Add Availability"}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
 
-        <div className="flex justify-end">
-          <Button type="button" onClick={saveAvailability}>
-            <Save className="size-4" />
-            Save availability
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+      <Card className="border border-slate-200 bg-white shadow-sm">
+        <CardHeader className="flex flex-row items-center justify-between gap-3">
+          <CardTitle className="text-lg">Configured Availability</CardTitle>
+          <select
+            value={selectedClinicId}
+            onChange={(event) => {
+              setSelectedClinicId(event.target.value);
+              if (!editingId) {
+                setForm((prev) => ({ ...prev, clinic_id: event.target.value }));
+              }
+            }}
+            className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+          >
+            <option value="">All clinics</option>
+            {clinics.map((clinic) => (
+              <option key={clinic.clinic_id} value={clinic.clinic_id}>
+                {clinic.clinic_name}
+              </option>
+            ))}
+          </select>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {filteredAvailability.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500">
+              No availability configured yet for the selected clinic.
+            </div>
+          ) : (
+            filteredAvailability.map((item) => {
+              const clinic = clinics.find((entry) => entry.clinic_id === item?.clinic_id);
+
+              return (
+                <div key={item.availability_id} className="rounded-xl border border-slate-200 p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="space-y-1">
+                      <p className="text-sm font-semibold text-slate-900">{clinic?.clinic_name || "Clinic"}</p>
+                      <p className="text-sm text-slate-600">
+                        {item?.date || item?.day_of_week || "Custom schedule"} · {formatTimeLabel(item?.start_time)} to{" "}
+                        {formatTimeLabel(item?.end_time)}
+                      </p>
+                      <p className="text-sm text-slate-500">
+                        {formatConsultationType(item?.consultation_type)} · {item?.slot_duration || 0} minute slots ·{" "}
+                        {item?.status || "active"}
+                      </p>
+                    </div>
+
+                    <div className="inline-flex gap-2">
+                      <Button type="button" size="sm" variant="outline" onClick={() => handleEdit(item)}>
+                        <Pencil className="size-4" />
+                        Edit
+                      </Button>
+                      <Button type="button" size="sm" variant="destructive" onClick={() => handleDelete(item.availability_id)}>
+                        <Trash2 className="size-4" />
+                        Delete
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }
