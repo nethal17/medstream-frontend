@@ -43,3 +43,10 @@ export async function getClinicDashboard(clinicId) {
   const response = await api.get(`/clinics/${clinicId}/dashboard`);
   return unwrapData(response.data);
 }
+
+export async function getClinicAppointments(clinicId, params = {}) {
+  const response = await api.get(`/clinics/${clinicId}/appointments`, {
+    params: cleanParams(params),
+  });
+  return unwrapData(response.data);
+}
