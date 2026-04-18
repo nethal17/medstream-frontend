@@ -1,3 +1,5 @@
+import { LogOut, UserRound } from "lucide-react";
+import { useState } from "react";
 import { Bell, HeartPulse, LogOut, RefreshCw, UserRound } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
@@ -6,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/useAuth";
 import { useRealtimeNotifications } from "@/hooks/useRealtimeNotifications";
 import { ROLES, getHomeRouteForRole } from "@/lib/auth";
+import logoImage from "@/assets/logo.png";
 import { getCurrentUserProfile } from "@/services/auth";
 import { getDoctorMe } from "@/services/doctors";
 
@@ -110,8 +113,8 @@ export default function PatientNavbar({
     <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/90 backdrop-blur-md">
       <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <Link to={homeTo} className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-teal-50 ring-1 ring-teal-100">
-            <HeartPulse className="size-5 text-teal-700" />
+          <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl bg-teal-50 ring-1 ring-teal-100">
+            <img src={logoImage} alt="MedStream logo" className="h-full w-full object-cover" />
           </div>
           <div className="leading-tight">
             <p className="text-sm font-semibold tracking-tight text-slate-900">MedStream</p>
