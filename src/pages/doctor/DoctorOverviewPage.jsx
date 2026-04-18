@@ -1,171 +1,107 @@
-import { CalendarCheck2, Clock3, Play, UserCheck } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import {
+  BadgeCheck,
+  CalendarCheck2,
+  Stethoscope,
+} from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
-import { extractApiErrorMessage, formatDisplayDate, formatTimeLabel, toPositiveInt } from "@/lib/appointment-utils";
-import { getAppointments, markAppointmentArrived } from "@/services/appointments";
-
-function canMarkArrived(status) {
-  return ["confirmed", "pending_payment"].includes(String(status || "").toLowerCase());
-}
-
-function canStartConsultation(status) {
-  return ["arrived", "in_progress", "confirmed"].includes(String(status || "").toLowerCase());
-}
-
-function getTodayIsoDate() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function getDummyAppointmentsForDate(date) {
-  return [
-    {
-      appointment_id: `dummy-${date}-1`,
-      patient_name: "Nimal Perera",
-      date,
-      start_time: "09:00:00",
-      consultation_type: "physical",
-      status: "confirmed",
-      is_dummy: true,
-    },
-    {
-      appointment_id: `dummy-${date}-2`,
-      patient_name: "Ishara Fernando",
-      date,
-      start_time: "10:30:00",
-      consultation_type: "telemedicine",
-      status: "arrived",
-      is_dummy: true,
-    },
-    {
-      appointment_id: `dummy-${date}-3`,
-      patient_name: "Kavindu De Silva",
-      date,
-      start_time: "12:00:00",
-      consultation_type: "physical",
-      status: "completed",
-      is_dummy: true,
-    },
-    {
-      appointment_id: `dummy-${date}-4`,
-      patient_name: "Sachini Wickramasinghe",
-      date,
-      start_time: "15:00:00",
-      consultation_type: "telemedicine",
-      status: "confirmed",
-      is_dummy: true,
-    },
-  ];
-}
+import { extractApiErrorMessage, formatConsultationType, formatCurrencyLkr } from "@/lib/appointment-utils";
+import { getDoctorMe } from "@/services/doctors";
 
 export default function DoctorOverviewPage() {
-  const navigate = useNavigate();
-  const [selectedDate, setSelectedDate] = useState(() => getTodayIsoDate());
-  const [items, setItems] = useState([]);
+  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [profile, setProfile] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [busyId, setBusyId] = useState("");
-
-  const summary = useMemo(() => {
-    const total = items.length;
-    const arrived = items.filter((item) => String(item.status).toLowerCase() === "arrived").length;
-    const completed = items.filter((item) => String(item.status).toLowerCase() === "completed").length;
-    const pending = total - completed;
-
-    return { total, arrived, completed, pending };
-  }, [items]);
-
-  const loadAppointments = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const payload = await getAppointments({
-        page: 1,
-        size: 100,
-        date: selectedDate,
-      });
-
-      const fetchedItems = Array.isArray(payload?.items) ? payload.items : [];
-
-      if (fetchedItems.length > 0) {
-        setItems(fetchedItems);
-      } else if (selectedDate === getTodayIsoDate()) {
-        setItems(getDummyAppointmentsForDate(selectedDate));
-      } else {
-        setItems([]);
-      }
-    } catch (error) {
-      toast.error(extractApiErrorMessage(error, "Unable to load today appointments."));
-      if (selectedDate === getTodayIsoDate()) {
-        setItems(getDummyAppointmentsForDate(selectedDate));
-      } else {
-        setItems([]);
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  }, [selectedDate]);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    loadAppointments();
-  }, [loadAppointments]);
+    let ignore = false;
 
-  const handleArrived = async (appointmentId) => {
-    const targetItem = items.find((item) => item.appointment_id === appointmentId);
+    async function loadDoctorProfile() {
+      setIsLoading(true);
+      setError("");
 
-    if (targetItem?.is_dummy) {
-      setItems((prev) =>
-        prev.map((item) =>
-          item.appointment_id === appointmentId
-            ? {
-                ...item,
-                status: "arrived",
-              }
-            : item
-        )
-      );
-      toast.success("Dummy appointment marked as arrived.");
-      return;
+      try {
+        const payload = await getDoctorMe({ date: selectedDate });
+
+        if (ignore) {
+          return;
+        }
+
+        setProfile(payload || null);
+      } catch (requestError) {
+        if (ignore) {
+          return;
+        }
+
+        setProfile(null);
+        setError(extractApiErrorMessage(requestError, "Unable to load doctor overview."));
+        toast.error(extractApiErrorMessage(requestError, "Unable to load doctor overview."));
+      } finally {
+        if (!ignore) {
+          setIsLoading(false);
+        }
+      }
     }
 
-    setBusyId(appointmentId);
-    try {
-      await markAppointmentArrived(appointmentId, {
-        reason: "Patient checked in at reception",
-      });
-      toast.success("Marked as arrived.");
-      await loadAppointments();
-    } catch (error) {
-      toast.error(extractApiErrorMessage(error, "Unable to mark arrived."));
-    } finally {
-      setBusyId("");
-    }
-  };
+    loadDoctorProfile();
 
-  const handleStartConsultation = async (item) => {
-    const appointmentId = item?.appointment_id;
-    if (!appointmentId) {
-      toast.error("Appointment ID missing.");
-      return;
-    }
+    return () => {
+      ignore = true;
+    };
+  }, [selectedDate]);
 
-    navigate(`/doctor/dashboard/consultation/${appointmentId}`, {
-      state: {
-        appointment: item,
-      },
-    });
-  };
+  const clinicAssignments = useMemo(() => {
+    return Array.isArray(profile?.clinics) ? profile.clinics : [];
+  }, [profile]);
+
+  const summary = useMemo(() => {
+    const clinicsWithSlots = clinicAssignments.filter((item) => item?.has_slots).length;
+    const totalSlots = clinicAssignments.reduce(
+      (total, item) => total + (Array.isArray(item?.available_slots) ? item.available_slots.length : 0),
+      0
+    );
+
+    return {
+      clinicsCount: clinicAssignments.length,
+      clinicsWithSlots,
+      totalSlots,
+      profileComplete: Boolean(profile?.profile_complete),
+    };
+  }, [clinicAssignments, profile?.profile_complete]);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center rounded-xl border border-slate-200 bg-white p-10">
+        <Spinner className="size-8 text-primary" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card className="border border-rose-200 bg-rose-50 shadow-sm">
+        <CardContent className="p-6 text-sm text-rose-700">{error}</CardContent>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-5">
       <Card className="border border-slate-200 bg-white shadow-sm">
         <CardHeader className="flex flex-row items-center justify-between gap-3">
-          <CardTitle className="inline-flex items-center gap-2 text-xl">
-            <CalendarCheck2 className="size-5 text-primary" />
-            Overview - Today Appointments
-          </CardTitle>
+          <div>
+            <CardTitle className="inline-flex items-center gap-2 text-xl">
+              <CalendarCheck2 className="size-5 text-primary" />
+              Doctor Overview
+            </CardTitle>
+            <p className="mt-2 text-sm text-slate-600">
+              Loaded through `GET /doctors/me`.
+            </p>
+          </div>
           <input
             type="date"
             value={selectedDate}
@@ -175,97 +111,74 @@ export default function DoctorOverviewPage() {
         </CardHeader>
         <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
-            <p className="text-sm font-medium text-slate-600">Total Slots</p>
-            <p className="mt-2 text-2xl font-semibold text-slate-900">{toPositiveInt(summary.total, 0)}</p>
+            <p className="text-sm font-medium text-slate-600">Doctor</p>
+            <p className="mt-2 text-lg font-semibold text-slate-900">{profile?.full_name || "-"}</p>
           </div>
           <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
-            <p className="text-sm font-medium text-slate-600">Arrived</p>
-            <p className="mt-2 text-2xl font-semibold text-emerald-700">{toPositiveInt(summary.arrived, 0)}</p>
+            <p className="text-sm font-medium text-slate-600">Specialization</p>
+            <p className="mt-2 text-lg font-semibold text-slate-900">{profile?.specialization || "-"}</p>
           </div>
           <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
-            <p className="text-sm font-medium text-slate-600">Completed</p>
-            <p className="mt-2 text-2xl font-semibold text-slate-900">{toPositiveInt(summary.completed, 0)}</p>
+            <p className="text-sm font-medium text-slate-600">Assigned Clinics</p>
+            <p className="mt-2 text-lg font-semibold text-slate-900">{summary.clinicsCount}</p>
           </div>
           <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
-            <p className="text-sm font-medium text-slate-600">Pending</p>
-            <p className="mt-2 text-2xl font-semibold text-amber-700">{toPositiveInt(summary.pending, 0)}</p>
+            <p className="text-sm font-medium text-slate-600">Available Slots</p>
+            <p className="mt-2 text-lg font-semibold text-emerald-700">{summary.totalSlots}</p>
           </div>
         </CardContent>
       </Card>
 
       <Card className="border border-slate-200 bg-white shadow-sm">
         <CardHeader>
-          <CardTitle className="text-lg">Appointments Calendar View ({formatDisplayDate(selectedDate)})</CardTitle>
+          <CardTitle className="inline-flex items-center gap-2 text-lg">
+            <Stethoscope className="size-5 text-primary" />
+            Profile Details
+          </CardTitle>
         </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="flex items-center justify-center py-10">
-              <Spinner className="size-7 text-primary" />
-            </div>
-          ) : (
-            <div className="overflow-x-auto rounded-lg border border-slate-200">
-              <table className="w-full min-w-[860px] text-left text-sm">
-                <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-                  <tr>
-                    <th className="px-4 py-3">Patient</th>
-                    <th className="px-4 py-3">Date</th>
-                    <th className="px-4 py-3">Start</th>
-                    <th className="px-4 py-3">Type</th>
-                    <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.map((item) => (
-                    <tr key={item.appointment_id} className="border-t">
-                      <td className="px-4 py-3 font-medium text-slate-800">{item.patient_name || "-"}</td>
-                      <td className="px-4 py-3 text-slate-600">{formatDisplayDate(item.date)}</td>
-                      <td className="px-4 py-3 text-slate-600">{formatTimeLabel(item.start_time)}</td>
-                      <td className="px-4 py-3 text-slate-600">{item.consultation_type || "-"}</td>
-                      <td className="px-4 py-3 text-slate-600">{item.status || "-"}</td>
-                      <td className="px-4 py-3 text-right">
-                        <div className="inline-flex gap-2">
-                          <Button
-                            size="xs"
-                            variant="outline"
-                            disabled={!canMarkArrived(item.status) || busyId === item.appointment_id}
-                            onClick={() => handleArrived(item.appointment_id)}
-                          >
-                            <UserCheck className="size-3" />
-                            Mark as arrived
-                          </Button>
-                          <Button
-                            size="xs"
-                            disabled={!canStartConsultation(item.status) || busyId === item.appointment_id}
-                            onClick={() => handleStartConsultation(item)}
-                          >
-                            <Play className="size-3" />
-                            Start consultation
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                  {items.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="px-4 py-8 text-center text-sm text-muted-foreground">
-                        No appointments for selected day.
-                      </td>
-                    </tr>
-                  ) : null}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
-            <div className="flex items-center gap-2 text-slate-700">
-              <Clock3 className="size-4" />
-              <p className="text-sm font-medium">Daily operating note</p>
-            </div>
-            <p className="mt-1 text-sm text-slate-600">
-              Use "Mark as arrived" once patient check-in is confirmed, then use "Start consultation" when you begin.
+        <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+            <p className="text-xs uppercase tracking-wide text-slate-500">Verification</p>
+            <p className="mt-2 inline-flex items-center gap-2 text-sm font-medium text-slate-900">
+              <BadgeCheck className="size-4 text-emerald-600" />
+              {profile?.verification_status || "Unknown"}
             </p>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+            <p className="text-xs uppercase tracking-wide text-slate-500">Consultation Mode</p>
+            <p className="mt-2 text-sm font-medium text-slate-900">
+              {formatConsultationType(profile?.consultation_mode)}
+            </p>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+            <p className="text-xs uppercase tracking-wide text-slate-500">Consultation Fee</p>
+            <p className="mt-2 text-sm font-medium text-slate-900">
+              {formatCurrencyLkr(profile?.consultation_fee)}
+            </p>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+            <p className="text-xs uppercase tracking-wide text-slate-500">Registration No</p>
+            <p className="mt-2 text-sm font-medium text-slate-900">
+              {profile?.medical_registration_no || "-"}
+            </p>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+            <p className="text-xs uppercase tracking-wide text-slate-500">Experience</p>
+            <p className="mt-2 text-sm font-medium text-slate-900">
+              {profile?.experience_years ? `${profile.experience_years} years` : "-"}
+            </p>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+            <p className="text-xs uppercase tracking-wide text-slate-500">Profile Complete</p>
+            <p className="mt-2 text-sm font-medium text-slate-900">{summary.profileComplete ? "Yes" : "No"}</p>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 md:col-span-2 xl:col-span-3">
+            <p className="text-xs uppercase tracking-wide text-slate-500">Qualifications</p>
+            <p className="mt-2 text-sm font-medium text-slate-900">{profile?.qualifications || "-"}</p>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 md:col-span-2 xl:col-span-3">
+            <p className="text-xs uppercase tracking-wide text-slate-500">Bio</p>
+            <p className="mt-2 text-sm text-slate-700">{profile?.bio || "No bio added yet."}</p>
           </div>
         </CardContent>
       </Card>

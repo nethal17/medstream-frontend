@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 
 import DoctorLayout from "@/components/doctor/DoctorLayout";
 import DoctorAvailabilityPage from "@/pages/doctor/DoctorAvailabilityPage";
+import DoctorAppointmentsPage from "@/pages/doctor/DoctorAppointmentsPage";
 import DoctorConsultationPage from "@/pages/doctor/DoctorConsultationPage";
 import DoctorConfigurationsPage from "@/pages/doctor/DoctorConfigurationsPage";
 import DoctorFinancialPage from "@/pages/doctor/DoctorFinancialPage";
@@ -15,6 +16,7 @@ export default function DoctorDashboardPage() {
       <Route element={<DoctorLayout />}>
         <Route index element={<Navigate to="overview" replace />} />
         <Route path="overview" element={<DoctorOverviewPage />} />
+        <Route path="appointments" element={<DoctorAppointmentsPage />} />
         <Route path="availability" element={<DoctorAvailabilityPage />} />
         <Route path="configurations" element={<DoctorConfigurationsPage />} />
         <Route path="financial" element={<DoctorFinancialPage />} />
