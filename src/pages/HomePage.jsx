@@ -25,7 +25,7 @@ const navItems = [
   { label: "Find Doctors", to: "/doctors" },
   { label: "Clinics", to: "/join-with-us" },
   { label: "Join With Us", to: "/join-with-us" },
-  { label: "Telemedicine", href: "#care-options" },
+  { label: "Contact Us", to: "/contact-us" },
   { label: "Help", href: "#footer" },
 ];
 

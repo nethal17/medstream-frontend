@@ -23,6 +23,7 @@ function getNavItemsByRole(role, isAuthenticated) {
     { label: "Find Doctors", to: "/doctors" },
     { label: "Clinics", to: "/join-with-us" },
     { label: "Join With Us", to: "/join-with-us" },
+    { label: "Contact Us", to: "/contact-us" },
   ];
 
   if (isAuthenticated) {
