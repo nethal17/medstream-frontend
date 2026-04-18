@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 
 import PatientLayout from "@/components/patient/PatientLayout";
+import PatientAppointmentsPage from "@/pages/patient/PatientAppointmentsPage";
 import PatientMedicalInformationPage from "@/pages/patient/PatientMedicalInformationPage";
 import PatientOverviewPage from "@/pages/patient/PatientOverviewPage";
 import PatientPrescriptionsPage from "@/pages/patient/PatientPrescriptionsPage";
@@ -13,6 +14,7 @@ export default function PatientDashboardPage() {
       <Route element={<PatientLayout />}>
         <Route index element={<Navigate to="overview" replace />} />
         <Route path="overview" element={<PatientOverviewPage />} />
+        <Route path="appointments" element={<PatientAppointmentsPage />} />
         <Route path="profile-setup" element={<PatientProfileSetupPage />} />
         <Route path="reports" element={<PatientReportsPage />} />
         <Route path="prescriptions" element={<PatientPrescriptionsPage />} />
