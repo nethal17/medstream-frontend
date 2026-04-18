@@ -220,14 +220,13 @@ export default function SuperAdminClinicsPage() {
             <table className="w-full min-w-[860px] text-left text-sm">
               <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                 <tr>
-                  <th className="px-4 py-3">Name</th>
-                  <th className="px-4 py-3">Registration</th>
-                  <th className="px-4 py-3">Address</th>
+                  <th className="px-4 py-3 w-52">Name</th>
+                  <th className="px-4 py-3 w-52">Address</th>
                   <th className="px-4 py-3">Contact</th>
                   <th className="px-4 py-3">Email</th>
                   <th className="px-4 py-3">Fee (LKR)</th>
                   <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3 text-right">Actions</th>
+                  <th className="px-4 py-3 text-center">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -247,7 +246,6 @@ export default function SuperAdminClinicsPage() {
                   sortedClinics.map((clinic) => (
                     <tr key={clinic.clinic_id} className="border-t">
                       <td className="px-4 py-3 text-slate-700">{clinic.clinic_name}</td>
-                      <td className="px-4 py-3 text-slate-700">{clinic.registration_no}</td>
                       <td className="px-4 py-3 text-slate-700">{clinic.address}</td>
                       <td className="px-4 py-3 text-slate-700">{clinic.phone}</td>
                       <td className="px-4 py-3 text-slate-700">{clinic.email}</td>
@@ -267,11 +265,11 @@ export default function SuperAdminClinicsPage() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex justify-end gap-2">
-                          <Button variant="outline" size="sm" onClick={() => handleEdit(clinic)}>
+                          <Button variant="outline" size="xs" className="rounded cursor-pointer" onClick={() => handleEdit(clinic)}>
                             <Pencil className="size-3.5" />
                             Edit
                           </Button>
-                          <Button variant="outline" size="sm" onClick={() => handleDelete(clinic.clinic_id)}>
+                          <Button variant="outline" size="xs" className="rounded cursor-pointer bg-red-600 text-white hover:bg-red-700 border-none" onClick={() => handleDelete(clinic.clinic_id)}>
                             <Trash2 className="size-3.5" />
                             Delete
                           </Button>
