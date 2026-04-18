@@ -79,3 +79,18 @@ export async function getPatientPrescriptions(patientId) {
   const data = unwrapData(response.data);
   return Array.isArray(data) ? data : [];
 }
+
+export async function createPatientPrescription(patientId, payload) {
+  const response = await api.post(`/patients/patients/${patientId}/prescriptions`, payload);
+  return unwrapData(response.data);
+}
+
+export async function deletePatientPrescription(patientId, prescriptionId) {
+  const response = await api.delete(`/patients/patients/${patientId}/prescriptions/${prescriptionId}`);
+  return unwrapData(response.data);
+}
+
+export async function getMedicalSummary(patientId) {
+  const response = await api.get(`/patients/patients/${patientId}/medical-summary`);
+  return unwrapData(response.data);
+}
