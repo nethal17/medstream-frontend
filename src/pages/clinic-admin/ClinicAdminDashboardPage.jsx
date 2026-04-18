@@ -6,6 +6,7 @@ import ClinicAdminConfigurationsPage from "@/pages/clinic-admin/ClinicAdminConfi
 import ClinicAdminFinancialsPage from "@/pages/clinic-admin/ClinicAdminFinancialsPage";
 import ClinicAdminOverviewPage from "@/pages/clinic-admin/ClinicAdminOverviewPage";
 import ClinicAdminStaffPage from "@/pages/clinic-admin/ClinicAdminStaffPage";
+import ClinicAdminDoctorsPage from "@/pages/clinic-admin/ClinicAdminDoctorsPage";
 
 export default function ClinicAdminDashboardPage() {
   return (
@@ -14,6 +15,7 @@ export default function ClinicAdminDashboardPage() {
         <Route index element={<Navigate to="overview" replace />} />
         <Route path="overview" element={<ClinicAdminOverviewPage />} />
         <Route path="staff" element={<ClinicAdminStaffPage />} />
+        <Route path="doctors" element={<ClinicAdminDoctorsPage />} />
         <Route path="appointments" element={<ClinicAdminAppointmentsPage />} />
         <Route path="financials" element={<ClinicAdminFinancialsPage />} />
         <Route path="configurations" element={<ClinicAdminConfigurationsPage />} />

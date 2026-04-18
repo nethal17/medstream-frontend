@@ -19,6 +19,11 @@ export async function createClinic(payload) {
   return unwrapData(response.data);
 }
 
+export async function getClinic(clinicId) {
+  const response = await api.get(`/clinics/${clinicId}`);
+  return unwrapData(response.data);
+}
+
 export async function updateClinic(clinicId, payload) {
   const response = await api.patch(`/clinics/${clinicId}`, payload);
   return unwrapData(response.data);
@@ -31,5 +36,17 @@ export async function updateClinicStatus(clinicId, payload) {
 
 export async function deleteClinic(clinicId) {
   const response = await api.delete(`/clinics/${clinicId}`);
+  return unwrapData(response.data);
+}
+
+export async function getClinicDashboard(clinicId) {
+  const response = await api.get(`/clinics/${clinicId}/dashboard`);
+  return unwrapData(response.data);
+}
+
+export async function getClinicAppointments(clinicId, params = {}) {
+  const response = await api.get(`/clinics/${clinicId}/appointments`, {
+    params: cleanParams(params),
+  });
   return unwrapData(response.data);
 }

@@ -80,6 +80,7 @@ export default function DoctorBookingPage() {
   const selectedDate = searchParams.get("date") || toApiDate(new Date());
   const preferredType = searchParams.get("consultation_type") || "";
   const preferredClinicId = searchParams.get("clinic_id") || "";
+  const preferredStartTime = searchParams.get("start_time") || "";
 
   const [selectedClinicId, setSelectedClinicId] = useState(preferredClinicId);
   const [selectedType, setSelectedType] = useState(preferredType || "physical");
@@ -115,7 +116,10 @@ export default function DoctorBookingPage() {
           : availableTypes[0] || preferredType || "physical";
 
       setSelectedType(nextType);
-      setSelectedStartTime("");
+
+      const nextSlots = getClinicSlotsByType(selectedClinic, nextType);
+      const canKeepPreferredStart = nextSlots.some((slot) => slot?.start_time === preferredStartTime);
+      setSelectedStartTime(canKeepPreferredStart ? preferredStartTime : "");
     } catch (requestError) {
       setDoctorProfile(null);
       setError("Unable to load doctor details.");
@@ -124,7 +128,7 @@ export default function DoctorBookingPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [doctorId, preferredType, selectedClinicId, selectedDate, selectedType]);
+  }, [doctorId, preferredStartTime, preferredType, selectedClinicId, selectedDate, selectedType]);
 
   useEffect(() => {
     loadProfile();
