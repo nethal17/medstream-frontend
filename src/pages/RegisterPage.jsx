@@ -133,8 +133,9 @@ export default function RegisterPage() {
             <CardContent>
               <form className="space-y-4" onSubmit={onSubmit}>
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-slate-700">Full name</label>
+                  <label htmlFor="full-name" className="text-sm font-medium text-slate-700">Full name</label>
                   <Input
+                    id="full-name"
                     placeholder="Kamal Perera"
                     value={fullName}
                     onChange={(event) => setFullName(event.target.value)}
@@ -143,8 +144,9 @@ export default function RegisterPage() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-slate-700">Email</label>
+                  <label htmlFor="email" className="text-sm font-medium text-slate-700">Email</label>
                   <Input
+                    id="email"
                     type="email"
                     placeholder="patient@example.com"
                     value={email}
@@ -154,8 +156,9 @@ export default function RegisterPage() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-slate-700">Phone (optional)</label>
+                  <label htmlFor="phone" className="text-sm font-medium text-slate-700">Phone (optional)</label>
                   <Input
+                    id="phone"
                     type="tel"
                     placeholder="0771234567"
                     value={phone}
@@ -165,8 +168,9 @@ export default function RegisterPage() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-slate-700">Password</label>
+                  <label htmlFor="password" className="text-sm font-medium text-slate-700">Password</label>
                   <Input
+                    id="password"
                     type="password"
                     placeholder="At least 8 characters"
                     value={password}
@@ -176,8 +180,9 @@ export default function RegisterPage() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-slate-700">Confirm password</label>
+                  <label htmlFor="confirm-password" className="text-sm font-medium text-slate-700">Confirm password</label>
                   <Input
+                    id="confirm-password"
                     type="password"
                     placeholder="Repeat your password"
                     value={confirmPassword}

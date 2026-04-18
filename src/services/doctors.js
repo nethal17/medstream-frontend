@@ -58,3 +58,50 @@ export async function deleteDoctor(doctorId) {
   const response = await api.delete(`/clinics/admin/doctors/${doctorId}`);
   return unwrapData(response.data);
 }
+
+export async function getDoctorMe() {
+  const response = await api.get("/doctors/me");
+  return unwrapData(response.data);
+}
+
+export async function resolveCurrentDoctor() {
+  const profile = await getDoctorMe();
+  return {
+    doctorId: profile?.doctor_id || profile?.id || "",
+    doctorName: profile?.full_name || profile?.name || "Doctor",
+  };
+}
+
+export async function getMyDoctorAvailability(params = {}) {
+  const response = await api.get("/doctors/me/availability", {
+    params: cleanParams(params),
+  });
+  return unwrapData(response.data);
+}
+
+export async function createMyDoctorAvailability(payload) {
+  const response = await api.post("/doctors/me/availability", payload);
+  return unwrapData(response.data);
+}
+
+export async function updateMyDoctorAvailability(availabilityId, payload) {
+  const response = await api.patch(`/doctors/me/availability/${availabilityId}`, payload);
+  return unwrapData(response.data);
+}
+
+export async function deleteMyDoctorAvailability(availabilityId) {
+  const response = await api.delete(`/doctors/me/availability/${availabilityId}`);
+  return unwrapData(response.data);
+}
+
+export async function updateMyDoctorProfile(payload) {
+  const response = await api.patch("/doctors/me", payload);
+  return unwrapData(response.data);
+}
+
+export async function updateMyConsultationFee(fee) {
+  const response = await api.patch("/doctors/me/consultation-fee", {
+    consultation_fee: fee,
+  });
+  return unwrapData(response.data);
+}

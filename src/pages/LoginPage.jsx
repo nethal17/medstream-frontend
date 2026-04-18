@@ -160,8 +160,9 @@ export default function LoginPage() {
             <CardContent>
               <form className="space-y-4" onSubmit={onSubmit}>
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-slate-700">Email</label>
+                  <label htmlFor="email" className="text-sm font-medium text-slate-700">Email</label>
                   <Input
+                    id="email"
                     type="email"
                     placeholder="patient@example.com"
                     value={email}
@@ -172,8 +173,9 @@ export default function LoginPage() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-slate-700">Password</label>
+                  <label htmlFor="password" className="text-sm font-medium text-slate-700">Password</label>
                   <Input
+                    id="password"
                     type="password"
                     placeholder="Enter your password"
                     value={password}
