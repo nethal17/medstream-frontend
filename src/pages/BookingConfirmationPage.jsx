@@ -46,13 +46,18 @@ export default function BookingConfirmationPage() {
   const clinicName = appointment.clinic_name || clinic?.clinic_name || "-";
 
   const isPendingPayment =
-    appointment.payment_status === "pending" && appointment.payment_id;
+    (appointment.payment_status === "pending" || appointment.paymentStatus === "pending") &&
+    (appointment.payment_id || appointment.paymentId || (appointment.consultation_fee > 0));
 
   const handlePayNow = async () => {
-    if (!appointment.payment_id) return;
+    const pid = appointment.payment_id || appointment.paymentId;
+    if (!pid) {
+      toast.error("Payment ID missing. Please contact support.");
+      return;
+    }
     setIsSubmitting(true);
     try {
-      const result = await initiatePayment(appointment.payment_id);
+      const result = await initiatePayment(pid);
       if (result?.gateway_url) {
         window.location.href = result.gateway_url;
       } else {
@@ -154,12 +159,27 @@ export default function BookingConfirmationPage() {
             <CreditCard className="size-4" />
             Payment: {appointment.payment_status || "pending"}
           </p>
-          <p className="text-sm text-muted-foreground">
-            Status: <span className="font-medium text-foreground">{appointment.status || "pending"}</span>
-          </p>
-          <p className="text-sm text-muted-foreground">
-            Fee: <span className="font-medium text-foreground">{formatCurrencyLkr(appointment.consultation_fee)}</span>
-          </p>
+          <div className="md:col-span-2 border-t pt-4 mt-2 space-y-2">
+            <h4 className="text-sm font-medium">Payment Breakdown</h4>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Doctor Consultation Fee</span>
+              <span>{formatCurrencyLkr(appointment.doctor_fee || appointment.consultation_fee)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Clinic Facility Charge</span>
+              <span>{formatCurrencyLkr(appointment.clinic_charge || 0)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">MedStream Service Fee (10%)</span>
+              <span>{formatCurrencyLkr(appointment.system_fee || 0)}</span>
+            </div>
+            <div className="flex justify-between items-center border-t pt-2 mt-2">
+              <span className="font-semibold text-foreground">Total Amount Paid</span>
+              <span className="text-lg font-bold text-primary">
+                {formatCurrencyLkr(appointment.total_amount || (appointment.consultation_fee * 1.1))}
+              </span>
+            </div>
+          </div>
         </CardContent>
       </Card>
 

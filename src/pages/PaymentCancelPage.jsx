@@ -18,7 +18,7 @@ export default function PaymentCancelPage() {
     // Try to find the most recent pending-payment appointment for this patient
     async function loadRecentAppointment() {
       try {
-        const { data } = await api.get("/appointments/appointments/my", {
+        const { data } = await api.get("/appointments/appointments", {
           params: { page: 1, size: 5 },
         });
         const items = data?.items || [];

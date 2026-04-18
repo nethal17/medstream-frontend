@@ -1,4 +1,4 @@
-import { CheckCircle2, CalendarDays, Clock3, Hospital, UserRound, CreditCard } from "lucide-react";
+import { CheckCircle2, CalendarDays, Clock3, Hospital, UserRound, CreditCard, MailCheck } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
@@ -11,7 +11,7 @@ import {
   formatDisplayDate,
   formatTimeLabel,
 } from "@/lib/appointment-utils";
-import { getPaymentByAppointment } from "@/services/payments";
+import { getPaymentByAppointment, verifyPaymentSession } from "@/services/payments";
 import api from "@/services/api";
 
 const MAX_POLLS = 10;
@@ -31,6 +31,16 @@ export default function PaymentSuccessPage() {
 
     cancelledRef.current = false;
 
+    // Use verification endpoint to bypass webhooks/CLI
+    async function verifyAndPoll() {
+      try {
+        await verifyPaymentSession(sessionId);
+      } catch (err) {
+        console.warn("Direct verification failed, falling back to polling.", err);
+      }
+      poll();
+    }
+
     let attempts = 0;
     let timerId;
 
@@ -39,7 +49,7 @@ export default function PaymentSuccessPage() {
       attempts += 1;
 
       try {
-        const { data: appointments } = await api.get("/appointments/appointments/my", {
+        const { data: appointments } = await api.get("/appointments/appointments", {
           params: { page: 1, size: 5 },
         });
 
@@ -74,7 +84,7 @@ export default function PaymentSuccessPage() {
       }
     }
 
-    poll();
+    verifyAndPoll();
 
     return () => {
       cancelledRef.current = true;
@@ -146,7 +156,7 @@ export default function PaymentSuccessPage() {
               <CreditCard className="size-4" />
               Payment:{" "}
               <span className="font-medium text-emerald-600">
-                {appointment.payment_status === "paid" ? "Paid" : "Processing"}
+                {appointment.payment_status === "paid" || appointment.status === "confirmed" ? "Paid" : "Processing"}
               </span>
             </p>
           </CardContent>
@@ -171,6 +181,15 @@ export default function PaymentSuccessPage() {
                 </span>
               </p>
             )}
+            <p className="inline-flex items-center gap-2 text-emerald-700">
+              <MailCheck className="size-4" />
+              Receipt emailed to your registered address.
+              {payment.transaction_reference ? (
+                <span className="font-medium">
+                  Ref: {payment.transaction_reference}
+                </span>
+              ) : null}
+            </p>
           </CardContent>
         </Card>
       )}

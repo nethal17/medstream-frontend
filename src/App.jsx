@@ -18,6 +18,8 @@ import PaymentCancelPage from "@/pages/PaymentCancelPage";
 import ClinicAdminDashboardPage from "@/pages/clinic-admin/ClinicAdminDashboardPage";
 import DoctorDashboardPage from "@/pages/doctor/DoctorDashboardPage";
 import PatientDashboardPage from "@/pages/patient/PatientDashboardPage";
+import PatientPrescriptionsPage from "@/pages/patient/PatientPrescriptionsPage";
+import FollowUpConfirmationPage from "@/pages/patient/FollowUpConfirmationPage";
 
 function FullPageSpinner() {
   return (
@@ -123,6 +125,8 @@ export default function App() {
             <Route path="/payment/success" element={<PaymentSuccessPage />} />
             <Route path="/payment/cancel" element={<PaymentCancelPage />} />
             <Route path="/patient/profile/*" element={<PatientDashboardPage />} />
+            <Route path="/patients/:patientId/prescriptions" element={<PatientPrescriptionsPage />} />
+            <Route path="/appointments/follow-ups/confirm" element={<FollowUpConfirmationPage />} />
           </Route>
 
           <Route element={<RoleRoute allowedRoles={[ROLES.DOCTOR]} />}>

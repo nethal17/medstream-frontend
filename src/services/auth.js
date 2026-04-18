@@ -23,3 +23,8 @@ export async function getCurrentUserProfile() {
   const response = await api.get("/auth/me");
   return normalizeAuthUser(response.data);
 }
+
+export async function registerUser(payload) {
+  const response = await api.post("/auth/register", payload);
+  return unwrapData(response.data);
+}

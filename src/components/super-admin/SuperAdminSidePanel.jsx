@@ -1,19 +1,16 @@
-import { Building2, CalendarDays, Settings2, Shield, Stethoscope, Video } from "lucide-react";
+import { Building2, CalendarDays, Landmark, Settings2, Shield, Stethoscope } from "lucide-react";
 
 const navItems = [
   { key: "overview", label: "Overview", icon: Shield },
   { key: "doctors", label: "Doctors", icon: Stethoscope },
   { key: "clinics", label: "Clinics", icon: Building2 },
   {
-    key: "appointments",
+    key: "appointments-normal",
     label: "Appointments",
     icon: CalendarDays,
-    children: [
-      { key: "appointments-normal", label: "Normal Appointments" },
-      { key: "appointments-telemedicine", label: "Telemedicine Appointments" },
-    ],
   },
   { key: "configurations", label: "Configurations", icon: Settings2 },
+  { key: "financial", label: "Earnings", icon: Landmark },
 ];
 
 function NavButton({ isActive, onClick, icon: Icon, label, isChild = false }) {

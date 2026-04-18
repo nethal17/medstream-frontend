@@ -11,6 +11,7 @@ import SuperAdminClinicsPage from "@/pages/super-admin/SuperAdminClinicsPage";
 import SuperAdminConfigurationsPage from "@/pages/super-admin/SuperAdminConfigurationsPage";
 import SuperAdminDoctorsPage from "@/pages/super-admin/SuperAdminDoctorsPage";
 import SuperAdminOverviewPage from "@/pages/super-admin/SuperAdminOverviewPage";
+import SuperAdminFinancialPage from "@/pages/super-admin/SuperAdminFinancialPage";
 import {
   getAdminAppointments,
   getActivePolicy,
@@ -183,6 +184,10 @@ export default function SuperAdminDashboardPage() {
           isSavingPolicy={isSavingPolicy}
         />
       );
+    }
+
+    if (activeSection === "financial") {
+      return <SuperAdminFinancialPage />;
     }
 
     return <SuperAdminOverviewPage stats={stats} />;
