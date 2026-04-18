@@ -1,4 +1,4 @@
-import { publicApi } from "@/services/api";
+import api, { publicApi } from "@/services/api";
 import { unwrapData } from "@/lib/appointment-utils";
 
 export async function sendJoinWithUsRequest(payload) {
@@ -8,8 +8,9 @@ export async function sendJoinWithUsRequest(payload) {
 
 export async function sendContactUsRequest(payload) {
   const response = await publicApi.post("/notifications/api/notifications/contact-us", payload);
-import api from "@/services/api";
-import { unwrapData } from "@/lib/appointment-utils";
+  return unwrapData(response.data);
+}
+
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "http://localhost:8080";

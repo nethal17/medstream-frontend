@@ -1,5 +1,3 @@
-import { LogOut, UserRound } from "lucide-react";
-import { useState } from "react";
 import { Bell, HeartPulse, LogOut, RefreshCw, UserRound } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";

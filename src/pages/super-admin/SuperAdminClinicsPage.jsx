@@ -106,39 +106,16 @@ export default function SuperAdminClinicsPage() {
 
     try {
       if (editingClinicId) {
-        const updatedPayload = {
+        const updatedClinic = await updateClinic(editingClinicId, {
           clinic_name: form.clinic_name.trim(),
           registration_no: form.registration_no.trim(),
           address: form.address.trim(),
           phone: form.phone.trim(),
           email: form.email.trim(),
-        };
-        const hasNonStatusChanges =
-          updatedPayload.clinic_name !== currentClinic?.clinic_name ||
-          updatedPayload.registration_no !== currentClinic?.registration_no ||
-          updatedPayload.address !== currentClinic?.address ||
-          updatedPayload.phone !== currentClinic?.phone ||
-          updatedPayload.email !== currentClinic?.email;
-        const statusChanged = currentClinic?.status !== form.status;
-
-        let updatedClinic = currentClinic;
-
-        if (hasNonStatusChanges) {
-          updatedClinic = await updateClinic(editingClinicId, updatedPayload);
-        }
-
-        try {
-          updated = await updateClinic(editingClinicId, {
-            clinic_name: form.clinic_name.trim(),
-            registration_no: form.registration_no.trim(),
-            address: form.address.trim(),
-            phone: form.phone.trim(),
-            email: form.email.trim(),
-            facility_charge: Number(form.facility_charge) || 0,
-            status: form.status,
-            reason: "Updated from Super Admin UI",
-          });
-        }
+          facility_charge: Number(form.facility_charge) || 0,
+          status: form.status,
+          reason: "Updated from Super Admin UI",
+        });
 
         if (!updatedClinic) {
           throw new Error("Unable to update clinic.");

@@ -27,3 +27,7 @@ Thumbs.db
 # Build outputs
 dist/
 build/
+
+# Playwright E2E (test-only, not committed)
+playwright-report/
+e2e/test-results/
