@@ -1,5 +1,7 @@
 import {
+  Bot,
   CalendarClock,
+  MessageCircle,
   Clock3,
   Filter,
   MapPin,
@@ -8,6 +10,7 @@ import {
   Stethoscope,
   UserRound,
   Video,
+  X,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -32,6 +35,7 @@ import {
 } from "@/lib/appointment-utils";
 import {
   cancelAppointment,
+  getChatbotRecommendations,
   getAppointments,
   rescheduleAppointment,
   searchDoctors,
@@ -116,6 +120,87 @@ function canJoinTelemedicine(item) {
   return item?.consultation_type === "telemedicine" && !["cancelled", "completed", "no_show"].includes(status);
 }
 
+function pickRecommendationSlot(item) {
+  const slots = Array.isArray(item?.available_slots) ? item.available_slots : [];
+  return slots[0] || null;
+}
+
+function toDateOnly(value) {
+  if (!value) {
+    return "";
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return value;
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return "";
+  }
+
+  return parsed.toISOString().slice(0, 10);
+}
+
+function getChatbotErrorMessage(errorResponse) {
+  const status = errorResponse?.response?.status;
+
+  if (status === 401) {
+    return "Please sign in again to use the symptom assistant.";
+  }
+
+  if (status === 403) {
+    return "This feature is available only for patient accounts.";
+  }
+
+  if (status === 502 || status === 503) {
+    return "AI service is temporarily unavailable. Please retry in a few seconds.";
+  }
+
+  if (status === 400 || status === 422) {
+    return extractApiErrorMessage(errorResponse, "Please check symptoms and filters, then try again.");
+  }
+
+  return extractApiErrorMessage(errorResponse, "Unable to get recommendations.");
+}
+
+function RecommendationDoctorCard({ item, onBook }) {
+  const slots = Array.isArray(item?.available_slots) ? item.available_slots.slice(0, 3) : [];
+
+  return (
+    <Card className="gap-3 border border-slate-200 bg-white py-4 shadow-sm">
+      <CardHeader className="pb-1">
+        <CardTitle className="text-lg">{item.full_name || "Doctor"}</CardTitle>
+        <p className="text-sm text-muted-foreground">{item.specialization || "Specialist"}</p>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        <p className="text-sm text-slate-600">Clinic: {item.clinic_name || "-"}</p>
+        <p className="text-sm text-slate-600">Type: {formatConsultationType(item.consultation_type)}</p>
+        <p className="text-sm text-slate-600">Fee: {formatCurrencyLkr(item.consultation_fee)}</p>
+        <p className="text-sm text-slate-600">Slots: {item.has_slots ? "Available" : "No slots"}</p>
+
+        {slots.length > 0 ? (
+          <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+            <p className="font-medium text-slate-700">Available slots</p>
+            <ul className="mt-1 space-y-1">
+              {slots.map((slot, index) => (
+                <li key={`${item.doctor_id}-${slot.start_time || index}`}>
+                  {slot?.date ? `${formatDisplayDate(slot.date)} ` : ""}
+                  {slot?.start_time ? formatTimeLabel(slot.start_time) : "Time not available"}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+
+        <Button size="sm" className="mt-2 w-full" disabled={!item?.doctor_id} onClick={onBook}>
+          Continue to Booking
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function DoctorsPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -139,6 +224,15 @@ export default function DoctorsPage() {
     searchParams.get("consultation_type") || "physical"
   );
   const [specialtyDraft, setSpecialtyDraft] = useState(searchParams.get("specialty") || "");
+  const [symptomsDraft, setSymptomsDraft] = useState("");
+  const [recommendationDate, setRecommendationDate] = useState(toApiDate(new Date()));
+  const [recommendationType, setRecommendationType] = useState("physical");
+  const [recommendationClinicId, setRecommendationClinicId] = useState("");
+  const [maxRecommendations, setMaxRecommendations] = useState(5);
+  const [chatbotResult, setChatbotResult] = useState(null);
+  const [chatbotError, setChatbotError] = useState("");
+  const [isChatbotLoading, setIsChatbotLoading] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   const filters = useMemo(() => {
     return {
@@ -317,6 +411,75 @@ export default function DoctorsPage() {
   const handleSearchClick = () => {
     updateFilter("consultation_type", selectedConsultationType || "");
     updateFilter("date", filters.date || toApiDate(new Date()));
+  };
+
+  const handleRecommendationBook = (item) => {
+    const slot = pickRecommendationSlot(item);
+    const next = new URLSearchParams();
+
+    const nextDate = slot?.date || recommendationDate || filters.date;
+    if (nextDate) {
+      next.set("date", nextDate);
+    }
+
+    const nextType = item?.consultation_type || recommendationType;
+    if (nextType) {
+      next.set("consultation_type", nextType);
+    }
+
+    if (item?.clinic_id) {
+      next.set("clinic_id", item.clinic_id);
+    }
+
+    if (slot?.start_time) {
+      next.set("start_time", slot.start_time);
+    }
+
+    navigate(`/doctors/${item.doctor_id}?${next.toString()}`);
+  };
+
+  const requestRecommendations = async () => {
+    if (!symptomsDraft.trim()) {
+      setChatbotError("Please describe symptoms to get recommendations.");
+      return;
+    }
+
+    setIsChatbotLoading(true);
+    setChatbotError("");
+
+    try {
+      const normalizedDate = recommendationDate || undefined;
+
+      const payload = {
+        symptoms: symptomsDraft.trim(),
+        target_date: normalizedDate,
+        consultation_type: recommendationType || undefined,
+        clinic_id: recommendationClinicId || undefined,
+        max_recommendations: Number(maxRecommendations) || 5,
+
+        // Aliases kept for compatibility with older backend normalizers.
+        symptomText: symptomsDraft.trim(),
+        targetDate: toDateOnly(normalizedDate),
+        date: normalizedDate,
+        appointmentDate: toDateOnly(normalizedDate),
+        consultationType: recommendationType || undefined,
+        clinicId: recommendationClinicId || undefined,
+        maxRecommendations: Number(maxRecommendations) || 5,
+      };
+
+      const data = await getChatbotRecommendations(payload);
+      setChatbotResult(data || null);
+    } catch (errorResponse) {
+      setChatbotResult(null);
+      setChatbotError(getChatbotErrorMessage(errorResponse));
+    } finally {
+      setIsChatbotLoading(false);
+    }
+  };
+
+  const handleRecommendationSubmit = async (event) => {
+    event.preventDefault();
+    await requestRecommendations();
   };
 
   const clearAll = () => {
@@ -776,6 +939,171 @@ export default function DoctorsPage() {
         onClose={() => setCancelTarget(null)}
         onConfirm={handleCancel}
       />
+
+      {isChatOpen ? (
+        <Card className="fixed right-4 bottom-4 z-50 max-h-[68vh] w-[min(92vw,480px)] gap-2 border border-slate-200 bg-white py-3 shadow-2xl">
+            <CardHeader className="space-y-1 pb-2">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <CardTitle className="inline-flex items-center gap-2 text-xl">
+                    <Bot className="size-5 text-primary" />
+                    Find Right Doctor
+                  </CardTitle>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Describe symptoms and get recommended doctors instantly.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Close chatbot"
+                  onClick={() => setIsChatOpen(false)}
+                >
+                  <X className="size-4" />
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3 overflow-y-auto">
+              <form onSubmit={handleRecommendationSubmit} className="space-y-3">
+                <textarea
+                  value={symptomsDraft}
+                  onChange={(event) => setSymptomsDraft(event.target.value)}
+                  placeholder="Example: I have chest pain and shortness of breath"
+                  className="min-h-24 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                />
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Input
+                    type="date"
+                    value={recommendationDate}
+                    onChange={(event) => setRecommendationDate(event.target.value)}
+                  />
+
+                  <select
+                    value={recommendationType}
+                    onChange={(event) => setRecommendationType(event.target.value)}
+                    className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                  >
+                    <option value="physical">In-person</option>
+                    <option value="telemedicine">Telemedicine</option>
+                  </select>
+
+                  <select
+                    value={recommendationClinicId}
+                    onChange={(event) => setRecommendationClinicId(event.target.value)}
+                    className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                  >
+                    <option value="">Any clinic</option>
+                    {clinicOptions
+                      .filter((option) => option.value)
+                      .map((option) => (
+                        <option key={`ai-${option.value}`} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                  </select>
+
+                  <Input
+                    type="number"
+                    min={1}
+                    max={10}
+                    value={maxRecommendations}
+                    onChange={(event) => setMaxRecommendations(event.target.value)}
+                  />
+                </div>
+
+                <Button type="submit" className="w-full" disabled={isChatbotLoading}>
+                  {isChatbotLoading ? "Getting recommendations..." : "Get Recommendations"}
+                </Button>
+              </form>
+
+              {chatbotError ? (
+                <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                  <p>{chatbotError}</p>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="mt-2"
+                    onClick={requestRecommendations}
+                    disabled={isChatbotLoading}
+                  >
+                    Retry
+                  </Button>
+                </div>
+              ) : null}
+
+              {chatbotResult ? (
+                <div className="space-y-4">
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                    <p>
+                      <span className="font-semibold">Reason:</span> {chatbotResult?.recommendation_reason || "-"}
+                    </p>
+                    <p className="mt-1">
+                      <span className="font-semibold">Total:</span> {chatbotResult?.total ?? 0}
+                      {chatbotResult?.llm_used != null
+                        ? ` | LLM used: ${chatbotResult.llm_used ? "Yes" : "No"}`
+                        : ""}
+                    </p>
+                  </div>
+
+                  {Array.isArray(chatbotResult?.suggested_specialties) &&
+                  chatbotResult.suggested_specialties.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {chatbotResult.suggested_specialties.map((specialty) => (
+                        <span
+                          key={specialty}
+                          className="rounded-full border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700"
+                        >
+                          {specialty}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  {chatbotResult?.follow_up_question ? (
+                    <div className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+                      <p className="font-semibold">Follow-up question</p>
+                      <p className="mt-1">{chatbotResult.follow_up_question}</p>
+                    </div>
+                  ) : null}
+
+                  {chatbotResult?.no_results_guidance ? (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                      {chatbotResult.no_results_guidance}
+                    </div>
+                  ) : null}
+
+                  {chatbotResult?.empty_state ? (
+                    <p className="text-sm text-slate-600">No recommendations yet. Please refine your symptoms.</p>
+                  ) : null}
+
+                  {Array.isArray(chatbotResult?.top_doctors) && chatbotResult.top_doctors.length > 0 ? (
+                    <div className="grid gap-4 md:grid-cols-2">
+                      {chatbotResult.top_doctors.map((item) => (
+                        <RecommendationDoctorCard
+                          key={`${item.doctor_id}-${item.clinic_id || "clinic"}`}
+                          item={item}
+                          onBook={() => handleRecommendationBook(item)}
+                        />
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+            </CardContent>
+          </Card>
+      ) : null}
+
+      <Button
+        type="button"
+        className="fixed right-4 bottom-4 z-40 rounded-full px-4 shadow-xl"
+        onClick={() => setIsChatOpen(true)}
+      >
+        <MessageCircle className="size-4" />
+        Find Doctor
+      </Button>
     </section>
   );
 }

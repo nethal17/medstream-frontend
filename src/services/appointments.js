@@ -75,6 +75,11 @@ export async function getPendingFollowUps() {
   return unwrapData(response.data);
 }
 
+export async function getChatbotRecommendations(payload) {
+  const response = await api.post("/appointments/chatbot/recommendations", payload);
+  return unwrapData(response.data);
+}
+
 export async function confirmFollowUp(suggestionId, payload = {}) {
   const response = await api.post(`/appointments/appointments/follow-ups/${suggestionId}/confirm`, payload);
   return unwrapData(response.data);
@@ -141,6 +146,7 @@ export const bookingApi = {
   rescheduleAppointment,
   suggestFollowUp,
   getPendingFollowUps,
+  getChatbotRecommendations,
   confirmFollowUp,
 };
 
