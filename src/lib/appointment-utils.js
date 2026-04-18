@@ -104,14 +104,48 @@ export function getAppointmentStatusBadgeClass(status) {
   return "bg-rose-100/70 text-rose-700";
 }
 
+function formatValidationDetail(detail) {
+  if (typeof detail === "string") {
+    return detail;
+  }
+
+  if (Array.isArray(detail)) {
+    return detail
+      .map((item) => {
+        if (typeof item === "string") {
+          return item;
+        }
+        if (typeof item === "object" && item !== null) {
+          if (item.msg) {
+            return item.msg;
+          }
+          return JSON.stringify(item);
+        }
+        return String(item);
+      })
+      .join(". ");
+  }
+
+  if (typeof detail === "object" && detail !== null) {
+    if (detail.msg) {
+      return detail.msg;
+    }
+    return JSON.stringify(detail);
+  }
+
+  return null;
+}
+
 export function extractApiErrorMessage(error, fallback = "Request failed. Please try again.") {
   const data = error?.response?.data;
+  const detailMessage = formatValidationDetail(data?.detail);
+  const errorsMessage = formatValidationDetail(data?.errors);
 
   return (
-    data?.detail ||
+    detailMessage ||
     data?.message ||
     data?.error ||
-    (Array.isArray(data?.errors) ? data.errors.join(". ") : null) ||
+    errorsMessage ||
     fallback
   );
 }

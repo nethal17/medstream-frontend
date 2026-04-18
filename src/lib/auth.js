@@ -77,6 +77,32 @@ export function getRoleFromToken(token) {
   return getRoleFromClaims(decodeJwtPayload(token));
 }
 
+export function getClinicIdFromToken(token) {
+  if (!token || typeof token !== "string") {
+    return null;
+  }
+
+  const claims = decodeJwtPayload(token);
+  if (!claims || typeof claims !== "object") {
+    return null;
+  }
+
+  return claims.clinic_id || claims.clinicId || null;
+}
+
+export function getUserIdFromToken(token) {
+  if (!token || typeof token !== "string") {
+    return null;
+  }
+
+  const claims = decodeJwtPayload(token);
+  if (!claims || typeof claims !== "object") {
+    return null;
+  }
+
+  return claims.sub || claims.user_id || claims.userId || null;
+}
+
 export function getHomeRouteForRole(role) {
   if (role === ROLES.PATIENT) {
     return "/";
