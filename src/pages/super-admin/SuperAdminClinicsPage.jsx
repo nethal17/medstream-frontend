@@ -14,6 +14,7 @@ const emptyForm = {
   address: "",
   phone: "",
   email: "",
+  facility_charge: "",
   status: "active",
 };
 
@@ -66,6 +67,7 @@ export default function SuperAdminClinicsPage() {
       address: clinic.address || "",
       phone: clinic.phone || "",
       email: clinic.email || "",
+      facility_charge: clinic.facility_charge || "0",
       status: clinic.status?.toLowerCase() || "active",
     });
   };
@@ -108,6 +110,7 @@ export default function SuperAdminClinicsPage() {
             address: form.address.trim(),
             phone: form.phone.trim(),
             email: form.email.trim(),
+            facility_charge: Number(form.facility_charge) || 0,
             status: form.status,
           });
         } catch (error) {
@@ -132,6 +135,7 @@ export default function SuperAdminClinicsPage() {
           address: form.address.trim(),
           phone: form.phone.trim(),
           email: form.email.trim(),
+          facility_charge: Number(form.facility_charge) || 0,
         });
 
         setClinics((prev) => [...prev, created]);
@@ -180,6 +184,12 @@ export default function SuperAdminClinicsPage() {
               value={form.email}
               onChange={(event) => handleInputChange("email", event.target.value)}
             />
+            <Input
+              placeholder="Facility Charge (LKR)"
+              type="number"
+              value={form.facility_charge}
+              onChange={(event) => handleInputChange("facility_charge", event.target.value)}
+            />
             <select
               className="h-10 rounded-md border border-input bg-background px-3 text-sm"
               value={form.status}
@@ -219,6 +229,7 @@ export default function SuperAdminClinicsPage() {
                   <th className="px-4 py-3">Address</th>
                   <th className="px-4 py-3">Contact</th>
                   <th className="px-4 py-3">Email</th>
+                  <th className="px-4 py-3">Fee (LKR)</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
@@ -245,6 +256,9 @@ export default function SuperAdminClinicsPage() {
                       <td className="px-4 py-3 text-slate-700">{clinic.address}</td>
                       <td className="px-4 py-3 text-slate-700">{clinic.phone}</td>
                       <td className="px-4 py-3 text-slate-700">{clinic.email}</td>
+                      <td className="px-4 py-3 text-slate-700 font-medium">
+                        {clinic.facility_charge ? Number(clinic.facility_charge).toLocaleString() : "0"}
+                      </td>
                       <td className="px-4 py-3">
                         <span
                           className={`rounded-full px-2.5 py-1 text-xs font-medium ${

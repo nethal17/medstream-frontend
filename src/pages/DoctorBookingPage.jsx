@@ -396,9 +396,27 @@ export default function DoctorBookingPage() {
             <MapPin className="size-4" />
             {selectedClinic?.clinic?.clinic_name || "Choose a clinic"}
           </p>
-          <div className="rounded-md border bg-muted/20 p-3">
-            <p className="text-muted-foreground">Total Amount</p>
-            <p className="text-xl font-semibold">{formatCurrencyLkr(doctorProfile.consultation_fee)}</p>
+          <div className="rounded-md border bg-muted/20 p-4 space-y-3">
+            <div className="flex justify-between text-xs">
+              <span className="text-muted-foreground">Professional Fee</span>
+              <span>{formatCurrencyLkr(doctorProfile.consultation_fee)}</span>
+            </div>
+            <div className="flex justify-between text-xs">
+              <span className="text-muted-foreground">Facility Charge</span>
+              <span>{formatCurrencyLkr(selectedClinic?.clinic?.facility_charge || 0)}</span>
+            </div>
+            <div className="flex justify-between text-xs">
+              <span className="text-muted-foreground">Service Fee (10%)</span>
+              <span>{formatCurrencyLkr((Number(doctorProfile.consultation_fee || 0) + Number(selectedClinic?.clinic?.facility_charge || 0)) * 0.1)}</span>
+            </div>
+            <div className="border-t pt-2 mt-2">
+              <div className="flex justify-between items-center">
+                <span className="font-medium">Total Amount</span>
+                <span className="text-xl font-bold text-primary">
+                  {formatCurrencyLkr((Number(doctorProfile.consultation_fee || 0) + Number(selectedClinic?.clinic?.facility_charge || 0)) * 1.1)}
+                </span>
+              </div>
+            </div>
           </div>
 
           <Button className="w-full" disabled={!canBook || isSubmitting} onClick={handleConfirmBooking}>

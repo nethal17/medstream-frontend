@@ -1,4 +1,4 @@
-import { CheckCircle2, CalendarDays, Clock3, Hospital, UserRound, CreditCard } from "lucide-react";
+import { CheckCircle2, CalendarDays, Clock3, Hospital, UserRound, CreditCard, MailCheck } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
@@ -181,6 +181,15 @@ export default function PaymentSuccessPage() {
                 </span>
               </p>
             )}
+            <p className="inline-flex items-center gap-2 text-emerald-700">
+              <MailCheck className="size-4" />
+              Receipt emailed to your registered address.
+              {payment.transaction_reference ? (
+                <span className="font-medium">
+                  Ref: {payment.transaction_reference}
+                </span>
+              ) : null}
+            </p>
           </CardContent>
         </Card>
       )}
