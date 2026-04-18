@@ -1,4 +1,4 @@
-import { Building2, CalendarDays, Settings2, Shield, Stethoscope, Video } from "lucide-react";
+import { Building2, CalendarDays, Landmark, Settings2, Shield, Stethoscope } from "lucide-react";
 
 const navItems = [
   { key: "overview", label: "Overview", icon: Shield },
@@ -10,6 +10,7 @@ const navItems = [
     icon: CalendarDays,
   },
   { key: "configurations", label: "Configurations", icon: Settings2 },
+  { key: "financial", label: "Earnings", icon: Landmark },
 ];
 
 function NavButton({ isActive, onClick, icon: Icon, label, isChild = false }) {
