@@ -4,6 +4,7 @@ import {
   Stethoscope,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,6 +13,8 @@ import { extractApiErrorMessage, formatConsultationType, formatCurrencyLkr } fro
 import { getDoctorMe } from "@/services/doctors";
 
 export default function DoctorOverviewPage() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [profile, setProfile] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -53,6 +56,21 @@ export default function DoctorOverviewPage() {
       ignore = true;
     };
   }, [selectedDate]);
+
+  useEffect(() => {
+    const completion = location.state?.consultationComplete;
+    if (!completion?.appointmentId) {
+      return;
+    }
+
+    if (completion.hasNotificationFailure) {
+      toast.success(`Consultation ${completion.appointmentId} completed. Some notifications may be delayed.`);
+    } else {
+      toast.success(`Consultation ${completion.appointmentId} completed. In-app notifications and email sent.`);
+    }
+
+    navigate(location.pathname + location.search, { replace: true, state: null });
+  }, [location.pathname, location.search, location.state, navigate]);
 
   const clinicAssignments = useMemo(() => {
     return Array.isArray(profile?.clinics) ? profile.clinics : [];

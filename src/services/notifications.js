@@ -1,9 +1,14 @@
 import api, { publicApi } from "@/services/api";
 import { unwrapData } from "@/lib/appointment-utils";
 
-export async function sendJoinWithUsRequest(payload) {
-  const response = await publicApi.post("/notifications/api/notifications/events", payload);
+export async function sendNotificationEvent(payload, usePublic = true) {
+  const client = usePublic ? publicApi : api;
+  const response = await client.post("/notifications/api/notifications/events", payload);
   return unwrapData(response.data);
+}
+
+export async function sendJoinWithUsRequest(payload) {
+  return sendNotificationEvent(payload, true);
 }
 
 export async function sendContactUsRequest(payload) {

@@ -24,6 +24,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { formatDisplayDate, formatTimeLabel } from "@/lib/appointment-utils";
 import { Spinner } from "@/components/ui/spinner";
+import { useDoctorIdentity } from "@/hooks/useDoctorIdentity";
 
 import { getMedicalSummary } from "@/services/patients";
 import { uploadDocument } from "@/services/documents";
@@ -32,6 +33,7 @@ import {
   markAppointmentCompleted,
   suggestFollowUp 
 } from "@/services/appointments";
+import { sendNotificationEvent } from "@/services/notifications";
 import {
   getAIOverview,
   getConsultationDocuments,
@@ -55,9 +57,11 @@ export default function DoctorConsultationPage() {
   const navigate = useNavigate();
   const { appointmentId } = useParams();
   const { state } = useLocation();
+  const { doctorId } = useDoctorIdentity();
 
   const appointment = state?.appointment || {};
   const patientId = appointment?.patient_id || appointment?.patientId || appointment?.patient?.id;
+  const doctorUserId = appointment?.doctor_id || appointment?.doctorId || doctorId;
   const isReadOnly = appointment?.status === "completed" || appointment?.status === "cancelled" || appointment?.status === "technical_failure";
 
 
@@ -117,6 +121,7 @@ export default function DoctorConsultationPage() {
 
   useEffect(() => {
     if (appointmentId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       fetchPageData();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -172,14 +177,22 @@ export default function DoctorConsultationPage() {
       setUploadingDoc(true);
       // 1. Upload to patient service to get URL
       const patientDoc = await uploadDocument(patientId, file, "Consultation Document", "public");
-      
-      // 2. Link to consultation
-      await uploadConsultationDocument(appointmentId, {
-        name: patientDoc.file_name,
-        document_type: "Consultation Document",
-        url: patientDoc.file_url,
-        description: "Uploaded during consultation"
-      });
+
+      // 2. Link to consultation only if not already linked by backend hooks/workflows.
+      const currentDocs = await getConsultationDocuments(appointmentId).catch(() => ({ results: [] }));
+      const existingItems = currentDocs?.results || [];
+      const alreadyLinked = existingItems.some(
+        (item) => item?.url === patientDoc.file_url || item?.name === patientDoc.file_name
+      );
+
+      if (!alreadyLinked) {
+        await uploadConsultationDocument(appointmentId, {
+          name: patientDoc.file_name,
+          document_type: "Consultation Document",
+          url: patientDoc.file_url,
+          description: "Uploaded during consultation"
+        });
+      }
 
       toast.success("Document uploaded successfully");
       const docsData = await getConsultationDocuments(appointmentId);
@@ -285,30 +298,52 @@ export default function DoctorConsultationPage() {
     try {
       setBusyState("completed");
       await markAppointmentCompleted(appointmentId);
-      toast.success("Appointment completed. Post-consultation email sent.");
-      
-      // Try to find the next appointment
-      const today = new Date().toISOString().slice(0, 10);
-      const payload = await getAppointments({ 
-        doctor_id: appointment.doctor_id, 
-        date: today,
-        size: 50
-      });
-      
-      const items = payload?.items || [];
-      const currentIndex = items.findIndex(a => (a.id || a.appointment_id) === appointmentId);
-      
-      // The next appointment is the one after current, provided it is not already completed
-      const nextAppt = items.slice(currentIndex + 1).find(a => a.status !== "completed");
 
-      if (nextAppt) {
-        navigate(`/doctor/consultation/${nextAppt.id || nextAppt.appointment_id}`, { 
-          state: { appointment: nextAppt },
-          replace: true 
-        });
-      } else {
-        navigate("/doctor/dashboard/overview");
+      const notificationJobs = [];
+
+      if (patientId) {
+        notificationJobs.push(
+          sendNotificationEvent({
+            event_type: "appointment.consultation_completed.patient",
+            user_id: patientId,
+            payload: {
+              appointment_id: appointmentId,
+              doctor_id: doctorUserId || null,
+              doctor_name: appointment?.doctor_name || null,
+              patient_name: appointment?.patient_name || null,
+            },
+            channels: ["in_app", "email"],
+          })
+        );
       }
+
+      if (doctorUserId) {
+        notificationJobs.push(
+          sendNotificationEvent({
+            event_type: "appointment.consultation_completed.doctor",
+            user_id: doctorUserId,
+            payload: {
+              appointment_id: appointmentId,
+              patient_id: patientId || null,
+              patient_name: appointment?.patient_name || null,
+            },
+            channels: ["in_app"],
+          })
+        );
+      }
+
+      const notificationResults = await Promise.allSettled(notificationJobs);
+      const hasNotificationFailure = notificationResults.some((result) => result.status === "rejected");
+
+      navigate("/doctor/dashboard/overview", {
+        replace: true,
+        state: {
+          consultationComplete: {
+            appointmentId,
+            hasNotificationFailure,
+          },
+        },
+      });
     } catch (error) {
       console.error("Completion error:", error);
       toast.error("Failed to complete appointment.");
