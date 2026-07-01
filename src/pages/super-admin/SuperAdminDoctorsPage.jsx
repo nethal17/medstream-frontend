@@ -37,6 +37,7 @@ const emptyForm = {
   email: "",
   specialization: "General Practice",
   consultation_fee: "",
+  consultation_mode: "telemedicine",
   status: "active",
 };
 
@@ -76,6 +77,7 @@ export default function SuperAdminDoctorsPage() {
       full_name: doctor.full_name || "",
       email: "", // We don't update email here
       specialization: doctor.specialization || "General Practice",
+      consultation_mode: doctor.consultation_mode || "physical",
       consultation_fee: doctor.consultation_fee || "",
       status: doctor.status || "active",
     });
@@ -208,37 +210,35 @@ export default function SuperAdminDoctorsPage() {
               <table className="w-full min-w-[760px] text-left text-sm">
                 <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                   <tr>
-                    <th className="px-4 py-3">ID</th>
                     <th className="px-4 py-3">Full Name</th>
                     <th className="px-4 py-3">Specialization</th>
-                    <th className="px-4 py-3">Consultation Fee</th>
+                    <th className="px-4 py-3 w-40">Consultation Mode</th>
+                    <th className="px-4 py-3 w-40">Consultation Fee</th>
                     <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3 text-right">Actions</th>
+                    <th className="px-4 py-3 text-center">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {sortedDoctors.map((doctor) => (
                     <tr key={doctor.doctor_id} className="border-t">
-                      <td className="px-4 py-3 text-slate-700 max-w-[120px] truncate" title={doctor.doctor_id}>
-                        {doctor.doctor_id}
-                      </td>
                       <td className="px-4 py-3 text-slate-700">{doctor.full_name}</td>
                       <td className="px-4 py-3 text-slate-700">{doctor.specialization || "-"}</td>
+                      <td className="px-4 py-3 text-slate-700 capitalize">{doctor.consultation_mode || "-"}</td>
                       <td className="px-4 py-3 text-slate-700">
-                        {doctor.consultation_fee != null ? `Rs. ${doctor.consultation_fee}` : "-"}
+                        {doctor.consultation_fee != null ? `Rs. ${doctor.consultation_fee}.00` : "-"}
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${doctor.status === "active" ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-700"}`}>
+                        <span className={`rounded-full px-2.5 py-1 text-xs font-medium capitalize ${doctor.status === "active" ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-700"}`}>
                           {doctor.status}
                         </span>
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex justify-end gap-2">
-                          <Button variant="outline" size="sm" onClick={() => handleEdit(doctor)}>
+                          <Button variant="outline" size="xs" className="rounded cursor-pointer" onClick={() => handleEdit(doctor)}>
                             <Pencil className="size-3.5" />
                             Edit
                           </Button>
-                          <Button variant="outline" size="sm" onClick={() => handleDelete(doctor.doctor_id)}>
+                          <Button variant="outline" size="xs" className="rounded bg-red-600 text-white border-none hover:bg-red-700 cursor-pointer" onClick={() => handleDelete(doctor.doctor_id)}>
                             <Trash2 className="size-3.5" />
                             Delete
                           </Button>

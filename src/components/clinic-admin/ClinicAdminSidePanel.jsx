@@ -1,10 +1,10 @@
-import { Building2, CalendarDays, DollarSign, LayoutDashboard, UsersRound } from "lucide-react";
+import { Building2, CalendarDays, DollarSign, LayoutDashboard, Stethoscope, UsersRound } from "lucide-react";
 import { NavLink } from "react-router-dom";
 
 const navItems = [
   { to: "overview", label: "Overview", icon: LayoutDashboard },
   { to: "staff", label: "Staff", icon: UsersRound },
-  { to: "doctors", label: "Doctors", icon: UsersRound },
+  { to: "doctors", label: "Doctors", icon: Stethoscope },
   { to: "appointments", label: "Appointments", icon: CalendarDays },
   { to: "financials", label: "Financials", icon: DollarSign },
   { to: "configurations", label: "Configurations", icon: Building2 },

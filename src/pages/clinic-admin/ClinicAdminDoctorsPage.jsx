@@ -1,4 +1,4 @@
-import { Link2, Trash2, UserPlus, UsersRound } from "lucide-react";
+import { Link2, PlusIcon, Trash2, UserPlus, UsersRound } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
@@ -131,6 +131,7 @@ export default function ClinicAdminDoctorsPage() {
                   <tr>
                     <th className="px-4 py-3">Doctor Name</th>
                     <th className="px-4 py-3">Specialization</th>
+                    <th className="px-4 py-3">Consultation Mode</th>  
                     <th className="px-4 py-3">Consultation Fee</th>
                     <th className="px-4 py-3 text-right">Actions</th>
                   </tr>
@@ -140,21 +141,21 @@ export default function ClinicAdminDoctorsPage() {
                     <tr key={item.doctor_id} className="border-t">
                       <td className="px-4 py-3 text-slate-700">{item.full_name}</td>
                       <td className="px-4 py-3 text-slate-700">{item.specialization || "-"}</td>
+                      <td className="px-4 py-3 text-slate-700 capitalize">{item.consultation_mode || "-"}</td>
                       <td className="px-4 py-3 text-slate-600">
-                        {item.consultation_fee != null ? `Rs. ${item.consultation_fee}` : "-"}
+                        {item.consultation_fee != null ? `Rs. ${item.consultation_fee}.00` : "-"}
                       </td>
                       <td className="px-4 py-3 text-right">
                         <Button
                           size="xs"
-                          variant="outline"
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          className="text-white hover:bg-red-700 bg-red-600 rounded"
                           disabled={isProcessingId === item.doctor_id}
                           onClick={() => handleUnassign(item.doctor_id)}
                         >
                           {isProcessingId === item.doctor_id ? (
-                            <Spinner className="mr-2 size-3" />
+                            <Spinner className="size-3" />
                           ) : (
-                            <Trash2 className="mr-2 size-3" />
+                            <Trash2 className="size-3" />
                           )}
                           Unassign
                         </Button>
@@ -194,6 +195,7 @@ export default function ClinicAdminDoctorsPage() {
                   <tr>
                     <th className="px-4 py-3">Doctor Name</th>
                     <th className="px-4 py-3">Specialization</th>
+                    <th className="px-4 py-3">Consultation Mode</th>
                     <th className="px-4 py-3">Consultation Fee</th>
                     <th className="px-4 py-3">Verification</th>
                     <th className="px-4 py-3 text-right">Actions</th>
@@ -204,11 +206,12 @@ export default function ClinicAdminDoctorsPage() {
                     <tr key={item.doctor_id} className="border-t">
                       <td className="px-4 py-3 text-slate-700">{item.full_name}</td>
                       <td className="px-4 py-3 text-slate-700">{item.specialization || "-"}</td>
+                      <td className="px-4 py-3 text-slate-700 capitalize">{item.consultation_mode || "-"}</td>
                       <td className="px-4 py-3 text-slate-600">
-                        {item.consultation_fee != null ? `Rs. ${item.consultation_fee}` : "-"}
+                        {item.consultation_fee != null ? `Rs. ${item.consultation_fee}.00` : "-"}
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`rounded-full px-2 py-1 text-xs font-medium ${
+                        <span className={`rounded-full px-2 py-1 text-xs font-medium capitalize ${
                           item.verification_status === "verified" ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-700"
                         }`}>
                           {item.verification_status}
@@ -218,13 +221,14 @@ export default function ClinicAdminDoctorsPage() {
                         <Button
                           size="xs"
                           variant="outline"
+                          className="rounded cursor-pointer"
                           disabled={isProcessingId === item.doctor_id}
                           onClick={() => handleAssign(item.doctor_id)}
                         >
                           {isProcessingId === item.doctor_id ? (
-                            <Spinner className="mr-2 size-3" />
+                            <Spinner className="size-3" />
                           ) : (
-                            <Link2 className="mr-2 size-3" />
+                            <PlusIcon className="size-3" />
                           )}
                           Assign
                         </Button>
